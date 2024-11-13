@@ -13,12 +13,15 @@ external:
     clientSecret:
 
 # Setup ingress for fairspace components
+# Change pathType to "Prefix" for ingress providers which do not default to prefix or wildcard
+#  matching for the "/" path, eg: AWS ALB
 fairspace:
   name: "fairspace"
   description: "Fairspace"
   ingress:
     enabled: true
     domain:
+    pathType: ImplementationSpecific
     annotations:
       pluto:
         kubernetes.io/ingress.class: nginx
