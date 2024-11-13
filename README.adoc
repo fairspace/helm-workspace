@@ -2656,7 +2656,7 @@ Create DNS records for the ``keycloak.example.com``, ``fairspace.example.com`` a
 # Fetch the fairspace-keycloak chart
 ~/bin/helm/helm pull oci://ghcr.io/thehyve/fairspace/helm-charts/fairspace-keycloak --version 0.7.0
 # Fetch the fairspace chart
-~/bin/helm/helm pull oci://ghcr.io/thehyve/fairspace/helm-charts/fairspace --version 2.0.1
+~/bin/helm/helm pull oci://ghcr.io/thehyve/fairspace/helm-charts/fairspace --version 2.0.2
 ----
 
 ===== Deploy Keycloak
@@ -2744,7 +2744,7 @@ Create a new deployment (called _release_ in helm terminology) and
 install the Fairspace chart:
 [source, shell]
 ----
-~/bin/helm/helm install fairspace-new fairspace-2.0.1.tgz --namespace=fairspace-new \
+~/bin/helm/helm install fairspace-new fairspace-2.0.2.tgz --namespace=fairspace-new \
 -f /path/to/values.yaml --set-file saturn.vocabulary=/path/to/vocabulary.ttl --set-file saturn.views=/path/to/views.yaml
 ----
 You can pass values files with ``-f`` and provide a file for a specified
@@ -2841,7 +2841,7 @@ Additionally, to include custom icons for `fairspace.icons` option, you need to 
 
 [source, shell]
 ----
-~/bin/helm/helm install fairspace-new fairspace-2.0.1.tgz --namespace=fairspace-new \
+~/bin/helm/helm install fairspace-new fairspace-2.0.2.tgz --namespace=fairspace-new \
 -f /path/to/values.yaml --set-file saturn.vocabulary=/path/to/vocabulary.ttl --set-file saturn.views=/path/to/views.yaml --set-file svgicons.extra-icon=/path/to/extra-icon.svg
 ----
 
@@ -2898,7 +2898,7 @@ jupyterhub:
 To update a deployment using a new chart:
 [source, shell]
 ----
-~/bin/helm/helm upgrade fairspace-new fairspace-2.0.1.tgz
+~/bin/helm/helm upgrade fairspace-new fairspace-2.0.2.tgz
 ----
 With ``helm upgrade`` you can also pass new values files with ``-f``
 and pass files with ``--set-file`` as for ``helm install``.
