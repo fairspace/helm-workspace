@@ -23,7 +23,7 @@ spec:
       http:
         paths:
           - path: /
-            pathType: ImplementationSpecific
+            pathType: {{ $ingress.pathType | default "ImplementationSpecific" }}
             backend:
               service:
                 name: {{ .Release.Name }}
