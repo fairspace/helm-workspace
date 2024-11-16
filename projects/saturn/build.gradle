@@ -5,6 +5,8 @@ buildscript {
         mockitoVersion = '5.11.0'
         jacksonVersion = '2.15.3' // check what version is used by Jena
         postgresqlVersion = '42.7.2'
+        clickhouseClientVersion = '0.6.5'
+        mybatisVersion = '3.5.16'
     }
 }
 
@@ -67,7 +69,12 @@ dependencies {
     implementation 'org.keycloak:keycloak-policy-enforcer:23.0.7'
 
     implementation "org.postgresql:postgresql:${postgresqlVersion}"
+    implementation "com.clickhouse:clickhouse-jdbc:${clickhouseClientVersion}"
+    implementation "org.mybatis:mybatis:${mybatisVersion}"
+    implementation "org.mybatis:mybatis-guice:4.0.0"
     implementation "com.zaxxer:HikariCP:5.1.0"
+    implementation group: 'org.apache.httpcomponents.client5', name: 'httpclient5', version: '5.4.1'
+    implementation group: 'org.lz4', name: 'lz4-java', version: '1.8.0'
 
     runtimeOnly 'org.apache.logging.log4j:log4j-api:2.23.0'
     runtimeOnly 'org.apache.logging.log4j:log4j-core:2.23.0'
@@ -118,3 +125,4 @@ test {
     // That is why this additional arg for tests is needed
     jvmArgs = ['--add-opens', 'java.base/java.util=ALL-UNNAMED']
 }
+

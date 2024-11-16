@@ -46,6 +46,7 @@ public class Config {
     public WebDAV webDAV = new WebDAV();
 
     public ViewDatabase viewDatabase = new ViewDatabase();
+    public ViewColumnDatabase viewColumnDatabase = new ViewColumnDatabase();
 
     public ExtraStorage extraStorage = new ExtraStorage();
 
@@ -110,6 +111,17 @@ public class Config {
     public static class ViewDatabase {
         public boolean enabled = false;
         public String url = String.format("jdbc:postgresql://%s:%d/%s", "localhost", 5432, "fairspace");
+        public String username = "fairspace";
+        public String password = "fairspace";
+        public int maxPoolSize = 50;
+        public long connectionTimeout = 1000;
+        public boolean autoCommit = false;
+        public boolean mvRefreshOnStartRequired = true;
+    }
+
+    public static class ViewColumnDatabase {
+        public boolean enabled = false;
+        public String url = String.format("jdbc:clickhouse://%s:%d/%s", "localhost", 8123, "fairspace");
         public String username = "fairspace";
         public String password = "fairspace";
         public int maxPoolSize = 50;

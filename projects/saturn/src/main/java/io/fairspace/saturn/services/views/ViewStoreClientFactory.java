@@ -2,13 +2,7 @@ package io.fairspace.saturn.services.views;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 import javax.sql.DataSource;
 
@@ -16,15 +10,21 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import io.fairspace.saturn.mapper.ViewMapper;
 import lombok.Builder;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.ibatis.mapping.Environment;
+import org.apache.ibatis.session.Configuration;
+import org.apache.ibatis.session.SqlSessionFactory;
 
 import io.fairspace.saturn.config.Config;
 import io.fairspace.saturn.config.ViewsConfig;
 import io.fairspace.saturn.config.ViewsConfig.ColumnType;
-import io.fairspace.saturn.config.ViewsConfig.View;
 import io.fairspace.saturn.vocabulary.FS;
+import org.apache.ibatis.session.SqlSessionFactoryBuilder;
+import org.apache.ibatis.transaction.TransactionFactory;
+import org.apache.ibatis.transaction.jdbc.JdbcTransactionFactory;
 
 import static io.fairspace.saturn.services.views.Table.idColumn;
 import static io.fairspace.saturn.services.views.Table.valueColumn;
@@ -32,10 +32,8 @@ import static io.fairspace.saturn.services.views.Table.valueColumn;
 @Slf4j
 public class ViewStoreClientFactory {
 
-    private final MaterializedViewService materializedViewService;
-
     public ViewStoreClient build() throws SQLException {
-        return new ViewStoreClient(getConnection(), configuration, materializedViewService);
+        return new ViewStoreClient(getPostgresConnection(), configuration);
     }
 
     public String databaseTypeForColumnType(ColumnType type) {
@@ -53,10 +51,28 @@ public class ViewStoreClientFactory {
 
     final ViewStoreClient.ViewStoreConfiguration configuration;
     public final DataSource dataSource;
+    private final SqlSessionFactory sqlSessionFactory;
 
-    public ViewStoreClientFactory(ViewsConfig viewsConfig, Config.ViewDatabase viewDatabase, Config.Search search)
+    public ViewStoreClientFactory(ViewsConfig viewsConfig, Config dbConfig, Config.Search search)
             throws SQLException {
-        log.debug("Initializing the database connection");
+
+        configuration = new ViewStoreClient.ViewStoreConfiguration(viewsConfig);
+
+        dataSource = initPostgres(viewsConfig, dbConfig.viewDatabase, search);
+        sqlSessionFactory = initClickhouse(dbConfig.viewColumnDatabase);
+
+    }
+
+    public Connection getPostgresConnection() throws SQLException {
+        return dataSource.getConnection();
+    }
+
+    public SqlSessionFactory getSqlSessionFactory() {
+        return sqlSessionFactory;
+    }
+
+    private HikariDataSource initPostgres(ViewsConfig viewsConfig, Config.ViewDatabase viewDatabase, Config.Search search) {
+        log.debug("Initializing the Postgresql database connection");
         var databaseConfig = new HikariConfig();
         databaseConfig.setJdbcUrl(viewDatabase.url);
         databaseConfig.setUsername(viewDatabase.username);
@@ -65,31 +81,52 @@ public class ViewStoreClientFactory {
         databaseConfig.setConnectionTimeout(viewDatabase.connectionTimeout);
         databaseConfig.setMaximumPoolSize(viewDatabase.maxPoolSize);
 
-        dataSource = new HikariDataSource(databaseConfig);
+        HikariDataSource postgres = new HikariDataSource(databaseConfig);
 
-        try (var connection = dataSource.getConnection()) {
-            log.debug("Database connection: {}", connection.getMetaData().getDatabaseProductName());
+        try (var connection = postgres.getConnection()) {
+            log.debug("Postgresql connection: {}", connection.getMetaData().getDatabaseProductName());
+            createOrUpdateTable(
+                new Table(
+                    "label",
+                    List.of(idColumn(), valueColumn("type", ColumnType.Text), valueColumn("label", ColumnType.Text))
+                ),
+                connection
+            );
+            for (ViewsConfig.View view : viewsConfig.views) {
+                createOrUpdateView(view, connection);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
         }
 
-        createOrUpdateTable(new Table(
-                "label",
-                List.of(idColumn(), valueColumn("type", ColumnType.Text), valueColumn("label", ColumnType.Text))));
-
-        configuration = new ViewStoreClient.ViewStoreConfiguration(viewsConfig);
-        // todo: configuration is initialized within the loop below, do the initialization in constructor
-        for (View view : viewsConfig.views) {
-            createOrUpdateView(view);
-        }
-        materializedViewService = new MaterializedViewService(dataSource, configuration, search.maxJoinItems);
-        if (viewDatabase.mvRefreshOnStartRequired) {
-            materializedViewService.createOrUpdateAllMaterializedViews();
-        } else {
-            log.warn("Skipping materialized view refresh on start");
-        }
+        return postgres;
     }
 
-    public Connection getConnection() throws SQLException {
-        return dataSource.getConnection();
+    private SqlSessionFactory initClickhouse(Config.ViewColumnDatabase dbConfig) {
+
+        log.debug("Initializing the Clickhouse database connection");
+        var databaseConfig = new HikariConfig();
+        databaseConfig.setJdbcUrl(dbConfig.url);
+        databaseConfig.setUsername(dbConfig.username);
+        databaseConfig.setPassword(dbConfig.password);
+        databaseConfig.setAutoCommit(dbConfig.autoCommit);
+        databaseConfig.setConnectionTimeout(dbConfig.connectionTimeout);
+        databaseConfig.setMaximumPoolSize(dbConfig.maxPoolSize);
+
+        HikariDataSource clickhouse = new HikariDataSource(databaseConfig);
+
+        try (var connection = clickhouse.getConnection()) {
+            log.debug("Clickhouse connection: {}", connection.getMetaData().getDatabaseProductName());
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+
+        TransactionFactory transactionFactory = new JdbcTransactionFactory();
+        Environment environment = new Environment("development", transactionFactory, clickhouse);
+        Configuration mybatisConfig = new Configuration(environment);
+        mybatisConfig.addMapper(ViewMapper.class);
+
+        return new SqlSessionFactoryBuilder().build(mybatisConfig);
     }
 
     Map<String, ColumnMetadata> getColumnMetadata(Connection connection, String table) throws SQLException {
@@ -109,32 +146,28 @@ public class ViewStoreClientFactory {
         return result;
     }
 
-    void createOrUpdateTable(Table table) throws SQLException {
-        try (var connection = getConnection()) {
-            log.debug("Check if table {} exists ...", table.name);
-            var resultSet = connection.getMetaData().getTables(null, null, table.name, null);
-            var tableExists = resultSet.next();
-            if (!tableExists) {
-                createTable(table, connection);
-            } else {
-                updateTable(table, connection);
-            }
+    void createOrUpdateTable(Table table, Connection connection) throws SQLException {
+        log.debug("Check if table {} exists ...", table.name);
+        var resultSet = connection.getMetaData().getTables(null, null, table.name, null);
+        var tableExists = resultSet.next();
+        if (!tableExists) {
+            createTable(table, connection);
+        } else {
+            updateTable(table, connection);
         }
     }
 
-    void createOrUpdateJoinTable(Table table) throws SQLException {
-        try (var connection = getConnection()) {
-            log.debug("Check if table {} exists ...", table.name);
-            var resultSet = connection.getMetaData().getTables(null, null, table.name, null);
-            var tableExists = resultSet.next();
+    void createOrUpdateJoinTable(Table table, Connection connection) throws SQLException {
+        log.debug("Check if table {} exists ...", table.name);
+        var resultSet = connection.getMetaData().getTables(null, null, table.name, null);
+        var tableExists = resultSet.next();
 
-            if (!tableExists) {
-                createTable(table, connection);
-                createIndexesIfNotExist(table, connection);
-            } else {
-                updateTable(table, connection);
-                createIndexesIfNotExist(table, connection);
-            }
+        if (!tableExists) {
+            createTable(table, connection);
+            createIndexesIfNotExist(table, connection);
+        } else {
+            updateTable(table, connection);
+            createIndexesIfNotExist(table, connection);
         }
     }
 
@@ -223,7 +256,7 @@ public class ViewStoreClientFactory {
         }
     }
 
-    void createOrUpdateView(ViewsConfig.View view) throws SQLException {
+    void createOrUpdateView(ViewsConfig.View view, Connection connection) throws SQLException {
         // Add view table
         validateViewConfig(view);
         var columns = new ArrayList<Table.ColumnDefinition>();
@@ -239,7 +272,7 @@ public class ViewStoreClientFactory {
             columns.add(valueColumn(column.name, column.type));
         }
         var table = new Table(view.name.toLowerCase(), columns);
-        createOrUpdateTable(table);
+        createOrUpdateTable(table, connection);
         configuration.viewTables.put(view.name, table);
         // Add property tables
         var setColumns =
@@ -250,7 +283,7 @@ public class ViewStoreClientFactory {
             propertyTableColumns.add(valueColumn(column.name, ColumnType.Identifier));
             var name = String.format("%s_%s", view.name.toLowerCase(), column.name.toLowerCase());
             var propertyTable = new Table(name, propertyTableColumns);
-            createOrUpdateTable(propertyTable);
+            createOrUpdateTable(propertyTable, connection);
             configuration.propertyTables.putIfAbsent(view.name, new HashMap<>());
             configuration.propertyTables.get(view.name).put(column.name, propertyTable);
         }
@@ -258,7 +291,7 @@ public class ViewStoreClientFactory {
             // Add join tables
             for (ViewsConfig.View.JoinView join : view.join) {
                 var joinTable = getJoinTable(join, view);
-                createOrUpdateJoinTable(joinTable);
+                createOrUpdateJoinTable(joinTable, connection);
                 configuration.joinTables.putIfAbsent(view.name, new HashMap<>());
                 configuration.joinTables.get(view.name).put(join.view, joinTable);
                 var joinView = configuration.viewConfig.get(join.view);
@@ -266,7 +299,7 @@ public class ViewStoreClientFactory {
         }
     }
 
-    public static Table getJoinTable(View.JoinView join, View view) {
+    public static Table getJoinTable(ViewsConfig.View.JoinView join, ViewsConfig.View view) {
         String left = join.reverse ? join.view : view.name;
         String right = join.reverse ? view.name : join.view;
         var name = String.format("%s_%s", left.toLowerCase(), right.toLowerCase());
@@ -279,4 +312,5 @@ public class ViewStoreClientFactory {
         private String type;
         private Boolean nullable;
     }
+
 }
