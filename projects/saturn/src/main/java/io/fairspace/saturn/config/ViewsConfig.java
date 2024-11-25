@@ -30,7 +30,7 @@ public class ViewsConfig {
 
     private static ViewsProperties loadViewsConfig(@Qualifier("yamlObjectMapper") ObjectMapper objectMapper) {
         try {
-            var settingsFile = ResourceUtils.getFile("classpath:views.yaml");
+            var settingsFile = ResourceUtils.getFile("views.yaml");
             if (settingsFile.exists()) {
                 return objectMapper.readValue(settingsFile, ViewsProperties.class);
             }
