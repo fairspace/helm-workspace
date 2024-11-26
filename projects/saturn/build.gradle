@@ -1,16 +1,16 @@
 buildscript {
     ext {
-        jena_version = '5.1.0'
-        milton_version = '4.0.2.2101'
+        jena_version = '5.2.0'
+        milton_version = '4.0.5.2400'
         mockitoVersion = '5.11.0'
-        jacksonVersion = '2.15.3' // check what version is used by Jena
+        jacksonVersion = '2.18.1' // check what version is used by Jena
         postgresqlVersion = '42.7.2'
     }
 }
 
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.3.0'
+    id 'org.springframework.boot' version '3.4.0'
     id 'io.spring.dependency-management' version '1.1.5'
     id "io.freefair.lombok" version "8.6"
     id 'application'
@@ -40,9 +40,9 @@ repositories {
     }
 }
 
-lombok.version = "1.18.32"
+lombok.version = "1.18.36"
 
-jacoco.toolVersion = "0.8.11"
+jacoco.toolVersion = "0.8.12"
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
@@ -58,16 +58,16 @@ dependencies {
     implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${jacksonVersion}"
 
     implementation 'com.pivovarit:throwing-function:1.5.1'
-    implementation 'com.google.guava:guava:33.0.0-jre'
+    implementation 'com.google.guava:guava:33.3.1-jre'
     implementation('com.io-informatics.oss:jackson-jsonld:0.1.1') {
         exclude group: 'com.github.jsonld-java'
     }
-    implementation('org.bouncycastle:bcprov-jdk15on:1.70')
+    implementation('org.bouncycastle:bcprov-jdk18on:1.79')
 
     implementation 'org.apache.logging.log4j:log4j-layout-template-json:2.23.0'
 
-    implementation 'org.keycloak:keycloak-admin-client:23.0.7'
-    implementation 'org.keycloak:keycloak-policy-enforcer:23.0.7'
+    implementation 'org.keycloak:keycloak-admin-client:26.0.3'
+    implementation 'org.keycloak:keycloak-policy-enforcer:26.0.3'
 
     implementation "org.postgresql:postgresql:${postgresqlVersion}"
     implementation "com.zaxxer:HikariCP:5.1.0"

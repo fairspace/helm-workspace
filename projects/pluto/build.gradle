@@ -6,7 +6,7 @@ buildscript {
 
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.2.4'
+    id 'org.springframework.boot' version '3.4.0'
     id "io.freefair.lombok" version '8.6'
     id 'application'
     id 'jacoco'
@@ -36,8 +36,8 @@ repositories {
 }
 
 ext {
-    springCloudVersion = '2023.0.0'
-    jacksonVersion = '2.16.1'
+    springCloudVersion = '2023.0.3'
+    jacksonVersion = '2.18.1'
 }
 
 jacoco.toolVersion = "0.8.11"
@@ -50,10 +50,10 @@ dependencies {
     implementation 'io.micrometer:micrometer-tracing-bridge-brave'
     implementation("org.springframework.cloud:spring-cloud-starter-gateway")
     implementation('org.springframework.boot:spring-boot-actuator')
-    implementation('commons-io:commons-io:2.16.0')
+    implementation('commons-io:commons-io:2.18.0')
 
-    implementation 'com.nimbusds:nimbus-jose-jwt:9.37.3'
-    implementation 'com.nimbusds:oauth2-oidc-sdk:11.10.1'
+    implementation 'com.nimbusds:nimbus-jose-jwt:9.47'
+    implementation 'com.nimbusds:oauth2-oidc-sdk:11.20.1'
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation "org.mockito:mockito-core:${mockitoVersion}"
