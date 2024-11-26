@@ -74,6 +74,7 @@ dependencies {
 
     testImplementation "junit:junit:4.13.2"
     testImplementation "org.mockito:mockito-core:${mockitoVersion}"
+    testImplementation "javax.mail:javax.mail-api:1.6.2"
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.junit.vintage:junit-vintage-engine:5.10.2'
     testImplementation "org.testcontainers:postgresql:1.19.6"
