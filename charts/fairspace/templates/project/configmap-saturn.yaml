@@ -7,37 +7,71 @@ metadata:
     {{- include "fairspace.labels" . | nindent 4 }}
 data:
   application.yaml: |-
-    port: 8090
-    livenessPort: 8091
-    publicUrl: {{ template "fairspace.url" . }}
-    jena:
-      metadataBaseIRI: http://{{ .Values.fairspace.ingress.domain }}/iri/
-      datasetPath: "/data/saturn/db"
-      storeParams:
-{{ toYaml .Values.saturn.storeParams | indent 8 }}
-      transactionLogPath: "/data/saturn/files/log"
-      bulkTransactions: {{ .Values.saturn.bulkTransactions }}
-    auth:
-      authServerUrl: {{ .Values.external.keycloak.managementUrl | default .Values.external.keycloak.baseUrl }}/
+    server:
+      port: 8090
+      servlet:
+        context-path: /api
+
+    spring:
+      security:
+        oauth2:
+          resourceserver:
+            jwt:
+              issuer-uri: {{ .Values.external.keycloak.baseUrl }}/realms/fairspace
+              jwk-set-uri: {{ .Values.external.keycloak.baseUrl }}/realms/fairspace/protocol/openid-connect/certs
+      servlet:
+        multipart:
+          max-file-size: 2GB
+          max-request-size: 2GB
+      http:
+        multipart:
+          enabled: true
+
+    keycloak:
+      auth-server-url: {{ .Values.external.keycloak.managementUrl | default .Values.external.keycloak.baseUrl }}/
       realm: {{ .Values.external.keycloak.realm }}
-      clientId: {{ .Values.external.keycloak.clientId }}
-      enableBasicAuth: {{ .Values.saturn.auth.enableBasicAuth }}
-      superAdminUser: {{ .Values.external.keycloak.superAdminUser | default (printf "organisation-admin-%s" .Values.external.keycloak.realm ) }}
+      client-id: {{ .Values.external.keycloak.clientId }}
+      super-admin-user: {{ .Values.external.keycloak.superAdminUser | default (printf "organisation-admin-%s" .Values.external.keycloak.realm ) }}
 {{ if .Values.saturn.auth.defaultUserRoles }}
-      defaultUserRoles:
+      default-user-roles:
 {{ toYaml .Values.saturn.auth.defaultUserRoles | indent 8 }}
 {{ end }}
-    webDAV:
-      blobStorePath: "/data/saturn/files/blobs"
-    viewDatabase:
-      enabled: true
-      mvRefreshOnStartRequired: {{ .Values.saturn.mvRefreshOnStartRequired }}
-    features:
-{{ toYaml .Values.fairspace.features | indent 6 }}
+
+    jwt:
+      auth:
+        converter:
+          resource-id: {{ .Values.external.keycloak.clientId }}
+          principal-attribute: preferred_username
+
+    application:
+      publicUrl: {{ template "fairspace.url" . }}
+      jena:
+        metadataBaseIRI: http://{{ .Values.fairspace.ingress.domain }}/iri/
+        datasetPath: "/data/saturn/db"
+        storeParams:
+{{ toYaml .Values.saturn.storeParams | indent 10 }}
+        transactionLogPath: "/data/saturn/files/log"
+        bulkTransactions: {{ .Values.saturn.bulkTransactions }}
+
+      webdav:
+        blobStorePath: "/data/saturn/files/blobs"
 {{ if has "ExtraStorage" .Values.fairspace.features }}
-    extraStorage:
-      blobStorePath: "/data/saturn/extrafiles/blobs"
+        extraStorage:
+          blobStorePath: "/data/saturn/extrafiles/blobs"
+          defaultRootCollections:
+            - "analysis-export"
 {{ end }}
+      view-database:
+        enabled: true
+        url: "jdbc:postgresql://localhost:5432/fairspace"
+        mvRefreshOnStartRequired: {{ .Values.saturn.mvRefreshOnStartRequired }}
+        username: fairspace
+        autoCommitEnabled: false
+        maxPoolSize: 50
+        connectionTimeout: 1000
+        password: fairspace
+      features:
+{{ toYaml .Values.fairspace.features | indent 8 }}
 
   vocabulary.ttl: |
 {{ if .Values.saturn.vocabulary -}}
