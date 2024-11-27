@@ -25,7 +25,7 @@ fairspace:
     JupyterHub:
       name: "JupyterHub"
       url: http://jupyterhub.local/user/${username}/lab
-      icons-name: jupyter
+      icon-name: jupyter
   metadata-sources:
     internal:
       label: "Metadata"
@@ -33,7 +33,7 @@ fairspace:
     test:
       name: test
       label: "External Metadata"
-      url: http://pluto.local/api/
+      url: http://fairspace.local/api/
       icon-name: "test-icon"
 
 # Specific settings for Saturn subchart
