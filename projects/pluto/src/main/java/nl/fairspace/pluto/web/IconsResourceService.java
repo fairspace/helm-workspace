@@ -1,12 +1,13 @@
 package nl.fairspace.pluto.web;
 
-import java.io.InputStream;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import nl.fairspace.pluto.config.dto.PlutoConfig;
 import org.springframework.stereotype.Service;
 
-import nl.fairspace.pluto.config.dto.PlutoConfig;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 
 import static nl.fairspace.pluto.config.Urls.ICONS_PATH;
 
@@ -29,6 +30,15 @@ public class IconsResourceService {
         if (iconPath == null) {
             return null;
         }
-        return getClass().getResourceAsStream(iconPath);
+        try {
+            InputStream inputStream = getClass().getResourceAsStream(iconPath);
+            if (inputStream != null && inputStream.available() > 0) {
+                return inputStream;
+            }
+            return new FileInputStream(iconPath);
+        } catch (IOException e) {
+            log.warn("Icon file not found in : {}", iconPath);
+            return null;
+        }
     }
 }
