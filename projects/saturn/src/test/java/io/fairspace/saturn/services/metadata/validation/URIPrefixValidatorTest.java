@@ -26,7 +26,7 @@ public class URIPrefixValidatorTest {
 
     @Before
     public void setUp() {
-        validator = new URIPrefixValidator("http://example.com/api/webdav");
+        validator = new URIPrefixValidator("http://example.com");
     }
 
     @Test

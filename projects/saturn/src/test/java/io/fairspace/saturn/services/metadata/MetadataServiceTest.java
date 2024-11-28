@@ -1,5 +1,7 @@
 package io.fairspace.saturn.services.metadata;
 
+import java.util.List;
+
 import org.apache.jena.query.Dataset;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.Property;
@@ -54,7 +56,7 @@ public class MetadataServiceTest {
     private static final Statement STMT1 = createStatement(S1, P1, S2);
     private static final Statement STMT2 = createStatement(S2, P1, S3);
 
-    private Dataset ds = createTxnMem();
+    private final Dataset ds = createTxnMem();
 
     @Spy
     private Transactions txn = new SimpleTransactions(ds);
@@ -74,8 +76,14 @@ public class MetadataServiceTest {
         Dataset ds = wrap(dsg);
         Model model = ds.getDefaultModel();
         var vocabulary = model.read("test-vocabulary.ttl");
+        var systemVocabulary = model.read("system-vocabulary.ttl");
 
-        api = new MetadataService(txn, vocabulary, new ComposedValidator(new UniqueLabelValidator()), permissions);
+        api = new MetadataService(
+                txn,
+                vocabulary,
+                systemVocabulary,
+                new ComposedValidator(List.of(new UniqueLabelValidator())),
+                permissions);
     }
 
     @Test
@@ -124,7 +132,6 @@ public class MetadataServiceTest {
         // Now ensure that the existing triples are still there
         // and the new ones are added
         txn.executeRead(model -> {
-            ;
             assertTrue(model.contains(EXISTING1));
             assertTrue(model.contains(EXISTING2));
             assertTrue(model.contains(STMT1));

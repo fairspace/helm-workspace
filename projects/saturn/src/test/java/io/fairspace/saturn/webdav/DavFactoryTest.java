@@ -10,21 +10,30 @@ import io.milton.http.ResourceFactory;
 import io.milton.http.exceptions.BadRequestException;
 import io.milton.http.exceptions.ConflictException;
 import io.milton.http.exceptions.NotAuthorizedException;
-import io.milton.resource.*;
+import io.milton.resource.DeletableResource;
+import io.milton.resource.FolderResource;
+import io.milton.resource.GetableResource;
+import io.milton.resource.MakeCollectionableResource;
+import io.milton.resource.MoveableResource;
+import io.milton.resource.MultiNamespaceCustomPropertyResource;
+import io.milton.resource.PostableResource;
+import io.milton.resource.PutableResource;
+import io.milton.resource.ReplaceableResource;
+import jakarta.servlet.http.HttpServletRequest;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.sparql.util.Context;
-import org.eclipse.jetty.server.Authentication;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import io.fairspace.saturn.config.properties.JenaProperties;
+import io.fairspace.saturn.config.properties.WebDavProperties;
 import io.fairspace.saturn.rdf.dao.DAO;
 import io.fairspace.saturn.rdf.transactions.SimpleTransactions;
 import io.fairspace.saturn.rdf.transactions.Transactions;
-import io.fairspace.saturn.services.metadata.MetadataService;
 import io.fairspace.saturn.services.users.User;
 import io.fairspace.saturn.services.users.UserService;
 import io.fairspace.saturn.services.workspaces.Workspace;
@@ -34,15 +43,26 @@ import io.fairspace.saturn.vocabulary.FS;
 import io.fairspace.saturn.webdav.blobstore.BlobInfo;
 import io.fairspace.saturn.webdav.blobstore.BlobStore;
 
-import static io.fairspace.saturn.TestUtils.*;
+import static io.fairspace.saturn.TestUtils.ADMIN;
+import static io.fairspace.saturn.TestUtils.USER;
+import static io.fairspace.saturn.TestUtils.createTestUser;
+import static io.fairspace.saturn.TestUtils.mockAuthentication;
+import static io.fairspace.saturn.TestUtils.setupRequestContext;
 import static io.fairspace.saturn.auth.RequestContext.getCurrentRequest;
 
 import static io.milton.http.ResponseStatus.SC_FORBIDDEN;
 import static java.lang.String.format;
 import static org.apache.jena.query.DatasetFactory.createTxnMem;
 import static org.apache.jena.rdf.model.ResourceFactory.createResource;
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
 public class DavFactoryTest {
@@ -60,55 +80,57 @@ public class DavFactoryTest {
     @Mock
     UserService userService;
 
-    @Mock
-    MetadataService metadataService;
-
     WorkspaceService workspaceService;
     Workspace workspace;
 
     Context context = new Context();
     User user;
-    Authentication.User userAuthentication;
     User workspaceManager;
-    Authentication.User workspaceManagerAuthentication;
     User admin;
-    Authentication.User adminAuthentication;
-    private org.eclipse.jetty.server.Request request;
+    private HttpServletRequest request;
 
     private ResourceFactory factory;
-    private Dataset ds = createTxnMem();
-    private Transactions tx = new SimpleTransactions(ds);
-    private Model model = ds.getDefaultModel();
+    private final Dataset ds = createTxnMem();
+    private final Transactions tx = new SimpleTransactions(ds);
+    private final Model model = ds.getDefaultModel();
+    private final DAO dao = new DAO(model);
 
     private void selectRegularUser() {
-        lenient().when(request.getAuthentication()).thenReturn(userAuthentication);
+        mockAuthentication(USER);
         lenient().when(userService.currentUser()).thenReturn(user);
     }
 
     private void selectWorkspaceManager() {
-        lenient().when(request.getAuthentication()).thenReturn(workspaceManagerAuthentication);
+        mockAuthentication("workspace-admin");
         lenient().when(userService.currentUser()).thenReturn(workspaceManager);
     }
 
     private void selectAdmin() {
-        lenient().when(request.getAuthentication()).thenReturn(adminAuthentication);
+        mockAuthentication(ADMIN);
         lenient().when(userService.currentUser()).thenReturn(admin);
     }
 
     @Before
     public void before() {
+        JenaProperties.setMetadataBaseIRI("http://localhost/iri/");
         workspaceService = new WorkspaceService(tx, userService);
-        factory = new DavFactory(model.createResource(baseUri), store, userService, context);
+        var vocabulary = model.read("test-vocabulary.ttl");
+        var userVocabulary = model.read("vocabulary.ttl");
+        factory = new DavFactory(
+                model.createResource(baseUri),
+                store,
+                userService,
+                context,
+                new WebDavProperties(),
+                userVocabulary,
+                vocabulary);
 
-        userAuthentication = mockAuthentication("user");
         user = createTestUser("user", false);
-        new DAO(model).write(user);
+        dao.write(user);
         workspaceManager = createTestUser("workspace-admin", false);
-        new DAO(model).write(workspaceManager);
-        workspaceManagerAuthentication = mockAuthentication("workspace-admin");
-        adminAuthentication = mockAuthentication("admin");
+        dao.write(workspaceManager);
         admin = createTestUser("admin", true);
-        new DAO(model).write(admin);
+        dao.write(admin);
 
         setupRequestContext();
         request = getCurrentRequest();
@@ -427,20 +449,6 @@ public class DavFactoryTest {
     }
 
     @Test
-    public void testRenameFile() throws NotAuthorizedException, BadRequestException, ConflictException, IOException {
-        var root = (MakeCollectionableResource) factory.getResource(null, BASE_PATH);
-        var coll = (FolderResource) root.createCollection("coll");
-
-        var file = coll.createNew("old", input, FILE_SIZE, "text/abc");
-
-        ((MoveableResource) file).moveTo(coll, "new");
-
-        assertEquals(1, coll.getChildren().size());
-        assertNull(coll.child("old"));
-        assertNotNull(coll.child("new"));
-    }
-
-    @Test
     public void testRenameDirectory()
             throws NotAuthorizedException, BadRequestException, ConflictException, IOException {
         var root = (MakeCollectionableResource) factory.getResource(null, BASE_PATH);
@@ -457,6 +465,20 @@ public class DavFactoryTest {
 
         assertNull(factory.getResource(null, BASE_PATH + "/coll/old/file"));
         assertNotNull(factory.getResource(null, BASE_PATH + "/coll/new/file"));
+    }
+
+    @Test
+    public void testRenameFile() throws NotAuthorizedException, BadRequestException, ConflictException, IOException {
+        var root = (MakeCollectionableResource) factory.getResource(null, BASE_PATH);
+        var coll = (FolderResource) root.createCollection("coll");
+
+        var file = coll.createNew("old", input, FILE_SIZE, "text/abc");
+
+        ((MoveableResource) file).moveTo(coll, "new");
+
+        assertEquals(1, coll.getChildren().size());
+        assertNull(coll.child("old"));
+        assertNotNull(coll.child("new"));
     }
 
     @Test

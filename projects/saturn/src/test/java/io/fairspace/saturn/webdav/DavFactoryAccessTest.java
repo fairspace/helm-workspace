@@ -11,12 +11,12 @@ import org.apache.jena.query.Dataset;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.sparql.util.Context;
-import org.eclipse.jetty.server.Authentication;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import io.fairspace.saturn.config.properties.WebDavProperties;
 import io.fairspace.saturn.rdf.dao.DAO;
 import io.fairspace.saturn.rdf.transactions.SimpleTransactions;
 import io.fairspace.saturn.rdf.transactions.Transactions;
@@ -28,12 +28,18 @@ import io.fairspace.saturn.services.workspaces.WorkspaceService;
 import io.fairspace.saturn.vocabulary.FS;
 import io.fairspace.saturn.webdav.blobstore.BlobStore;
 
-import static io.fairspace.saturn.TestUtils.*;
+import static io.fairspace.saturn.TestUtils.ADMIN;
+import static io.fairspace.saturn.TestUtils.USER;
+import static io.fairspace.saturn.TestUtils.createTestUser;
+import static io.fairspace.saturn.TestUtils.mockAuthentication;
+import static io.fairspace.saturn.TestUtils.setupRequestContext;
 import static io.fairspace.saturn.auth.RequestContext.getCurrentRequest;
 
 import static org.apache.jena.query.DatasetFactory.createTxnMem;
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @RunWith(Parameterized.class)
 public class DavFactoryAccessTest {
@@ -44,21 +50,19 @@ public class DavFactoryAccessTest {
     WorkspaceService workspaceService;
 
     User user;
-    Authentication.User userAuthentication;
     User admin;
-    Authentication.User adminAuthentication;
 
-    private org.eclipse.jetty.server.Request request;
     private ResourceFactory factory;
-    private Dataset ds = createTxnMem();
-    private Transactions tx = new SimpleTransactions(ds);
-    private Model model = ds.getDefaultModel();
+    private final Dataset ds = createTxnMem();
+    private final Transactions tx = new SimpleTransactions(ds);
+    private final Model model = ds.getDefaultModel();
+    private final DAO dao = new DAO(model);
 
-    private Access grantedAccess;
-    private Status status;
-    private AccessMode accessMode;
-    private Access expectedAccess;
-    private Context context = new Context();
+    private final Access grantedAccess;
+    private final Status status;
+    private final AccessMode accessMode;
+    private final Access expectedAccess;
+    private final Context context = new Context();
 
     public DavFactoryAccessTest(Access grantedAccess, Status status, AccessMode accessMode, Access expectedAccess) {
         this.grantedAccess = grantedAccess;
@@ -99,30 +103,37 @@ public class DavFactoryAccessTest {
     }
 
     private void selectRegularUser() {
-        lenient().when(request.getAuthentication()).thenReturn(userAuthentication);
+        mockAuthentication(USER);
         lenient().when(userService.currentUser()).thenReturn(user);
     }
 
     private void selectAdmin() {
-        lenient().when(request.getAuthentication()).thenReturn(adminAuthentication);
+        mockAuthentication(ADMIN);
         lenient().when(userService.currentUser()).thenReturn(admin);
     }
 
     @Before
     public void before() {
         workspaceService = new WorkspaceService(tx, userService);
-        factory = new DavFactory(model.createResource(baseUri), store, userService, context);
+        var vocabulary = model.read("test-vocabulary.ttl");
+        var userVocabulary = model.read("vocabulary.ttl");
+        factory = new DavFactory(
+                model.createResource(baseUri),
+                store,
+                userService,
+                context,
+                new WebDavProperties(),
+                userVocabulary,
+                vocabulary);
 
         setupRequestContext();
-        request = getCurrentRequest();
-        userAuthentication = mockAuthentication("user");
+        var request = getCurrentRequest();
         user = createTestUser("user", false);
         user.setCanViewPublicData(true);
         user.setCanViewPublicMetadata(true);
-        new DAO(model).write(user);
-        adminAuthentication = mockAuthentication("admin");
+        dao.write(user);
         admin = createTestUser("admin", true);
-        new DAO(model).write(admin);
+        dao.write(admin);
 
         selectAdmin();
         var workspace = workspaceService.createWorkspace(

@@ -1,15 +1,20 @@
 package io.fairspace.saturn.services.metadata.validation;
 
+import java.util.List;
+
 import org.apache.jena.graph.Node;
 import org.apache.jena.rdf.model.Model;
+import org.springframework.stereotype.Component;
 
 /**
  * Combines a few validators into one. Stops on a first failing validator.
  */
+@Component("composedValidator")
 public class ComposedValidator implements MetadataRequestValidator {
-    private final MetadataRequestValidator[] validators;
 
-    public ComposedValidator(MetadataRequestValidator... validators) {
+    private final List<MetadataRequestValidator> validators;
+
+    public ComposedValidator(List<MetadataRequestValidator> validators) {
         this.validators = validators;
     }
 

@@ -9,12 +9,13 @@ import java.util.Map;
 import javax.sql.DataSource;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
 
-import io.fairspace.saturn.config.ViewsConfig;
-
-import static io.fairspace.saturn.config.ConfigLoader.VIEWS_CONFIG;
+import io.fairspace.saturn.config.properties.ViewsProperties;
 
 @Slf4j
+@Service
 public class MaterializedViewService {
 
     private static final String INDEX_POSTFIX = "_idx";
@@ -23,18 +24,23 @@ public class MaterializedViewService {
 
     private final DataSource dataSource;
     private final ViewStoreClient.ViewStoreConfiguration configuration;
+    private final ViewsProperties viewsProperties;
     private final int maxJoinItems;
 
     public MaterializedViewService(
-            DataSource dataSource, ViewStoreClient.ViewStoreConfiguration configuration, int maxJoinItems) {
+            DataSource dataSource,
+            ViewStoreClient.ViewStoreConfiguration configuration,
+            ViewsProperties viewsProperties,
+            @Value("${application.search.maxJoinItems}") int maxJoinItems) {
         this.dataSource = dataSource;
         this.configuration = configuration;
+        this.viewsProperties = viewsProperties;
         this.maxJoinItems = maxJoinItems;
     }
 
     public void createOrUpdateAllMaterializedViews() {
         try (var connection = dataSource.getConnection()) {
-            for (var view : VIEWS_CONFIG.views) {
+            for (var view : viewsProperties.views) {
                 createOrUpdateViewMaterializedView(view, connection);
                 createOrUpdateJoinMaterializedView(view, connection);
             }
@@ -44,7 +50,8 @@ public class MaterializedViewService {
         }
     }
 
-    private void createOrUpdateViewMaterializedView(ViewsConfig.View view, Connection connection) throws SQLException {
+    private void createOrUpdateViewMaterializedView(ViewsProperties.View view, Connection connection)
+            throws SQLException {
         var setColumns =
                 view.columns.stream().filter(column -> column.type.isSet()).toList();
         if (!setColumns.isEmpty()) {
@@ -78,8 +85,9 @@ public class MaterializedViewService {
         }
     }
 
-    private void createOrUpdateJoinMaterializedView(ViewsConfig.View view, Connection connection) throws SQLException {
-        for (ViewsConfig.View.JoinView joinView : view.join) {
+    private void createOrUpdateJoinMaterializedView(ViewsProperties.View view, Connection connection)
+            throws SQLException {
+        for (ViewsProperties.View.JoinView joinView : view.join) {
             String viewName = view.name.toLowerCase();
             String joinViewName = joinView.view.toLowerCase();
             var mvName = "mv_%s_join_%s".formatted(viewName, joinViewName);
@@ -153,8 +161,8 @@ public class MaterializedViewService {
 
     private void createViewMaterializedView(
             String viewOrTableName,
-            ViewsConfig.View view,
-            List<ViewsConfig.View.Column> setColumns,
+            ViewsProperties.View view,
+            List<ViewsProperties.View.Column> setColumns,
             Connection connection)
             throws SQLException {
         String viewName = view.name.toLowerCase();
@@ -210,7 +218,8 @@ public class MaterializedViewService {
     }
 
     private void createJoinMaterializedViews(
-            ViewsConfig.View view, ViewsConfig.View.JoinView joinView, Connection connection) throws SQLException {
+            ViewsProperties.View view, ViewsProperties.View.JoinView joinView, Connection connection)
+            throws SQLException {
         var viewTableName = view.name.toLowerCase();
         var joinTable = configuration.joinTables.get(view.name).get(joinView.view).name;
         var joinedTable = configuration.viewTables.get(joinView.view).name.toLowerCase();
@@ -320,7 +329,7 @@ public class MaterializedViewService {
         }
     }
 
-    private List<String> collectViewColumns(ViewsConfig.View view) {
+    private List<String> collectViewColumns(ViewsProperties.View view) {
         List<String> columns = view.columns.stream()
                 .filter(column -> column.type.isSet())
                 .map(column -> column.name.toLowerCase())
@@ -330,7 +339,7 @@ public class MaterializedViewService {
         return columns;
     }
 
-    private List<String> collectJoinColumns(ViewsConfig.View view, ViewsConfig.View.JoinView joinView) {
+    private List<String> collectJoinColumns(ViewsProperties.View view, ViewsProperties.View.JoinView joinView) {
         var viewTableName = view.name.toLowerCase();
         var joinedTable = configuration.viewTables.get(joinView.view).name.toLowerCase();
         var viewIdColumn = viewTableName + "_id";

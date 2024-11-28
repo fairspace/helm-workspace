@@ -1,15 +1,17 @@
 buildscript {
     ext {
-        jena_version = '4.10.0' // todo: upgrade to 5+ (FAIRSPC-69)
-        milton_version = '3.1.1.488' // Milton >= 4 is migrated to Jakarta EE 9, which is not compatible with Jena < 5 (no stable release of Jena 5 yet). To be updated when Jena 5 is released.
+        jena_version = '5.2.0'
+        milton_version = '4.0.5.2400'
         mockitoVersion = '5.11.0'
-        jacksonVersion = '2.15.3' // check what version is used by Jena
+        jacksonVersion = '2.18.1' // check what version is used by Jena
         postgresqlVersion = '42.7.2'
     }
 }
 
 plugins {
     id 'java'
+    id 'org.springframework.boot' version '3.4.0'
+    id 'io.spring.dependency-management' version '1.1.5'
     id "io.freefair.lombok" version "8.6"
     id 'application'
     id 'jacoco'
@@ -26,7 +28,7 @@ compileJava {
 }
 
 application {
-    mainClassName = "io.fairspace.saturn.App"
+    mainClassName = "io.fairspace.saturn.SaturnApplication"
     applicationDefaultJvmArgs = ['-XX:+ShowCodeDetailsInExceptionMessages']
 }
 
@@ -38,53 +40,48 @@ repositories {
     }
 }
 
-lombok.version = "1.18.30"
+lombok.version = "1.18.36"
 
-jacoco.toolVersion = "0.8.11"
+jacoco.toolVersion = "0.8.12"
 
 dependencies {
-//    implementation fileTree(dir: 'libs', include: '*.jar') // jena-fuseki-server-*.jar jena-text-es-*.jar
-    implementation "org.apache.jena:jena-fuseki-main:${jena_version}"
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
     implementation "org.apache.jena:jena-text:${jena_version}"
     implementation "io.milton:milton-server-ce:${milton_version}"
+
     implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${jacksonVersion}"
     implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${jacksonVersion}"
-    implementation "com.sparkjava:spark-core:2.9.4"
+
     implementation 'com.pivovarit:throwing-function:1.5.1'
-    implementation 'com.google.guava:guava:33.0.0-jre'
-//    implementation 'jakarta.servlet:jakarta.servlet-api:6.0.0' // To be updated when Jena 5 is released.
+    implementation 'com.google.guava:guava:33.3.1-jre'
     implementation('com.io-informatics.oss:jackson-jsonld:0.1.1') {
         exclude group: 'com.github.jsonld-java'
     }
-    implementation('org.bouncycastle:bcprov-jdk15on:1.70')
+    implementation('org.bouncycastle:bcprov-jdk18on:1.79')
 
     implementation 'org.apache.logging.log4j:log4j-layout-template-json:2.23.0'
 
-    implementation 'org.eclipse.jetty:jetty-proxy:9.4.54.v20240208'
-
-    implementation 'org.keycloak:keycloak-jetty94-adapter:23.0.7'
-    implementation 'org.keycloak:keycloak-admin-client:23.0.7'
-    implementation 'org.keycloak:keycloak-policy-enforcer:23.0.7'
+    implementation 'org.keycloak:keycloak-admin-client:26.0.3'
+    implementation 'org.keycloak:keycloak-policy-enforcer:26.0.3'
 
     implementation "org.postgresql:postgresql:${postgresqlVersion}"
     implementation "com.zaxxer:HikariCP:5.1.0"
 
-    runtimeOnly 'org.apache.logging.log4j:log4j-api:2.23.0'
-    runtimeOnly 'org.apache.logging.log4j:log4j-core:2.23.0'
-    runtimeOnly 'org.apache.logging.log4j:log4j-slf4j2-impl:2.23.0'
-
     testImplementation "junit:junit:4.13.2"
     testImplementation "org.mockito:mockito-core:${mockitoVersion}"
+    testImplementation "javax.mail:javax.mail-api:1.6.2"
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.junit.vintage:junit-vintage-engine:5.10.2'
     testImplementation "org.testcontainers:postgresql:1.19.6"
     testImplementation('com.github.stefanbirkner:system-rules:1.19.0') {
         exclude group: 'junit', module:'junit-dep'
     }
 
-    constraints {
-//        implementation('com.fasterxml.jackson.core:jackson-databind:2.9.10.1') {
-//            because 'previous versions have security vulnerabilities'
-//        }
-    }
 }
 
 jacocoTestReport {
@@ -117,4 +114,5 @@ test {
     // They also blocks usage of testing library mocking environment variables,
     // That is why this additional arg for tests is needed
     jvmArgs = ['--add-opens', 'java.base/java.util=ALL-UNNAMED']
+    useJUnitPlatform()
 }

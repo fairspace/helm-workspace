@@ -2,15 +2,19 @@ package io.fairspace.saturn.rdf;
 
 import java.io.File;
 
-import lombok.extern.log4j.*;
+import lombok.extern.log4j.Log4j2;
 import org.apache.jena.datatypes.TypeMapper;
 import org.apache.jena.dboe.base.file.Location;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.query.DatasetFactory;
 
-import io.fairspace.saturn.config.*;
-import io.fairspace.saturn.rdf.transactions.*;
-import io.fairspace.saturn.services.views.*;
+import io.fairspace.saturn.config.properties.JenaProperties;
+import io.fairspace.saturn.config.properties.ViewsProperties;
+import io.fairspace.saturn.rdf.transactions.LocalTransactionLog;
+import io.fairspace.saturn.rdf.transactions.SparqlTransactionCodec;
+import io.fairspace.saturn.rdf.transactions.TxnIndexDatasetGraph;
+import io.fairspace.saturn.rdf.transactions.TxnLogDatasetGraph;
+import io.fairspace.saturn.services.views.ViewStoreClientFactory;
 
 import static io.fairspace.saturn.rdf.MarkdownDataType.MARKDOWN_DATA_TYPE;
 import static io.fairspace.saturn.rdf.transactions.Restore.restore;
@@ -28,17 +32,24 @@ public class SaturnDatasetFactory {
      * Currently it adds transaction logging and applies default vocabulary if
      * needed.
      */
-    public static Dataset connect(Config.Jena config, ViewStoreClientFactory viewStoreClientFactory) {
-        var restoreNeeded = isRestoreNeeded(config.datasetPath);
+    public static Dataset connect(
+            ViewsProperties viewsProperties,
+            JenaProperties jenaProperties,
+            ViewStoreClientFactory viewStoreClientFactory,
+            String publicUrl) {
+        var restoreNeeded = isRestoreNeeded(jenaProperties.getDatasetPath());
 
         // Create a TDB2 dataset graph
-        var dsg = connectCreate(Location.create(config.datasetPath.getAbsolutePath()), config.storeParams, null)
+        var dsg = connectCreate(
+                        Location.create(jenaProperties.getDatasetPath().getAbsolutePath()),
+                        jenaProperties.getStoreParams(),
+                        null)
                 .getDatasetGraph();
 
-        var txnLog = new LocalTransactionLog(config.transactionLogPath, new SparqlTransactionCodec());
+        var txnLog = new LocalTransactionLog(jenaProperties.getTransactionLogPath(), new SparqlTransactionCodec());
 
         if (viewStoreClientFactory != null) {
-            dsg = new TxnIndexDatasetGraph(dsg, viewStoreClientFactory);
+            dsg = new TxnIndexDatasetGraph(viewsProperties, dsg, viewStoreClientFactory, publicUrl);
         }
 
         if (restoreNeeded) {

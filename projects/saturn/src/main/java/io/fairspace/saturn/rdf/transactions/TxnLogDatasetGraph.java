@@ -1,17 +1,17 @@
 package io.fairspace.saturn.rdf.transactions;
 
 import com.pivovarit.function.ThrowingRunnable;
-import lombok.extern.log4j.*;
+import lombok.extern.log4j.Log4j2;
 import org.apache.jena.graph.Node;
 import org.apache.jena.query.ReadWrite;
 import org.apache.jena.query.TxnType;
+import org.apache.jena.query.text.changes.TextQuadAction;
 import org.apache.jena.sparql.core.DatasetGraph;
-import org.apache.jena.sparql.core.QuadAction;
-import org.keycloak.representations.AccessToken;
 
+import io.fairspace.saturn.auth.RequestContext;
 import io.fairspace.saturn.rdf.AbstractChangesAwareDatasetGraph;
 
-import static io.fairspace.saturn.auth.RequestContext.getAccessToken;
+import static io.fairspace.saturn.auth.RequestContext.getClaims;
 
 import static java.lang.System.currentTimeMillis;
 
@@ -21,7 +21,7 @@ public class TxnLogDatasetGraph extends AbstractChangesAwareDatasetGraph {
             "Catastrophic failure. Shutting down. The system requires admin's intervention.";
 
     private final TransactionLog transactionLog;
-    private volatile AccessToken user;
+    private volatile RequestContext.SaturnClaims claims;
     private DatasetGraph dsg;
 
     public TxnLogDatasetGraph(DatasetGraph dsg, TransactionLog transactionLog) {
@@ -34,12 +34,12 @@ public class TxnLogDatasetGraph extends AbstractChangesAwareDatasetGraph {
      * Collects changes
      */
     @Override
-    protected void onChange(QuadAction action, Node graph, Node subject, Node predicate, Node object) {
+    protected void onChange(TextQuadAction action, Node graph, Node subject, Node predicate, Node object) {
         critical(() -> {
-            var currentUser = getAccessToken();
-            if (currentUser != user) {
-                user = currentUser;
-                transactionLog.onMetadata(user.getSubject(), user.getName(), currentTimeMillis());
+            var newClaims = getClaims();
+            if (!newClaims.equals(claims)) {
+                this.claims = newClaims;
+                transactionLog.onMetadata(this.claims.getSubject(), this.claims.getName(), currentTimeMillis());
             }
             switch (action) {
                 case ADD -> transactionLog.onAdd(graph, subject, predicate, object);
@@ -65,7 +65,7 @@ public class TxnLogDatasetGraph extends AbstractChangesAwareDatasetGraph {
         super.begin(readWrite);
 
         if (readWrite == ReadWrite.WRITE) { // a write transaction => be ready to collect changes
-            user = null;
+            claims = null;
             critical(transactionLog::onBegin);
         }
     }

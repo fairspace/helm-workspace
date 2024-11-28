@@ -3,8 +3,10 @@ package io.fairspace.saturn.services.views;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import javax.sql.DataSource;
 
 import io.milton.http.ResourceFactory;
 import io.milton.http.exceptions.BadRequestException;
@@ -16,7 +18,6 @@ import org.apache.jena.query.Dataset;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.sparql.core.DatasetGraphFactory;
 import org.apache.jena.sparql.util.Context;
-import org.eclipse.jetty.server.Authentication;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -25,9 +26,14 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import io.fairspace.saturn.PostgresAwareTest;
-import io.fairspace.saturn.config.Config;
-import io.fairspace.saturn.config.ConfigLoader;
-import io.fairspace.saturn.config.ViewsConfig;
+import io.fairspace.saturn.config.properties.CacheProperties;
+import io.fairspace.saturn.config.properties.JenaProperties;
+import io.fairspace.saturn.config.properties.SearchProperties;
+import io.fairspace.saturn.config.properties.ViewsProperties;
+import io.fairspace.saturn.config.properties.WebDavProperties;
+import io.fairspace.saturn.controller.dto.ValueDto;
+import io.fairspace.saturn.controller.dto.request.CountRequest;
+import io.fairspace.saturn.controller.dto.request.ViewRequest;
 import io.fairspace.saturn.rdf.dao.DAO;
 import io.fairspace.saturn.rdf.transactions.SimpleTransactions;
 import io.fairspace.saturn.rdf.transactions.Transactions;
@@ -46,6 +52,8 @@ import io.fairspace.saturn.webdav.DavFactory;
 import io.fairspace.saturn.webdav.blobstore.BlobInfo;
 import io.fairspace.saturn.webdav.blobstore.BlobStore;
 
+import static io.fairspace.saturn.TestUtils.ADMIN;
+import static io.fairspace.saturn.TestUtils.USER;
 import static io.fairspace.saturn.TestUtils.createTestUser;
 import static io.fairspace.saturn.TestUtils.loadViewsConfig;
 import static io.fairspace.saturn.TestUtils.mockAuthentication;
@@ -61,7 +69,8 @@ import static org.mockito.Mockito.when;
 @RunWith(MockitoJUnitRunner.class)
 public class JdbcQueryServiceTest extends PostgresAwareTest {
     static final String BASE_PATH = "/api/webdav";
-    static final String baseUri = ConfigLoader.CONFIG.publicUrl + BASE_PATH;
+    static final String PUBLIC_URL = "http://localhost:8080";
+    static final String baseUri = PUBLIC_URL + BASE_PATH;
     static final String SAMPLE_NATURE_BLOOD = "http://ncicb.nci.nih.gov/xml/owl/EVS/Thesaurus.owl#C12434";
     static final String ANALYSIS_TYPE_RNA_SEQ = "https://institut-curie.org/osiris#O6-12";
     static final String ANALYSIS_TYPE_IMAGING = "https://institut-curie.org/osiris#C37-2";
@@ -80,78 +89,96 @@ public class JdbcQueryServiceTest extends PostgresAwareTest {
     QueryService sut;
     MaintenanceService maintenanceService;
 
+    private DAO dao;
+
     User user;
-    Authentication.User userAuthentication;
     User workspaceManager;
-    Authentication.User workspaceManagerAuthentication;
     User admin;
-    Authentication.User adminAuthentication;
-    private org.eclipse.jetty.server.Request request;
 
     private void selectRegularUser() {
-        lenient().when(request.getAuthentication()).thenReturn(userAuthentication);
+        mockAuthentication(USER);
         lenient().when(userService.currentUser()).thenReturn(user);
     }
 
     private void selectAdmin() {
-        lenient().when(request.getAuthentication()).thenReturn(adminAuthentication);
+        mockAuthentication(ADMIN);
         lenient().when(userService.currentUser()).thenReturn(admin);
     }
 
     @Before
     public void before()
             throws SQLException, NotAuthorizedException, BadRequestException, ConflictException, IOException {
-        var viewDatabase = new Config.ViewDatabase();
-        viewDatabase.url = postgres.getJdbcUrl();
-        viewDatabase.username = postgres.getUsername();
-        viewDatabase.password = postgres.getPassword();
-        viewDatabase.maxPoolSize = 5;
-        ViewsConfig config = loadViewsConfig("src/test/resources/test-views.yaml");
-        var viewStoreClientFactory = new ViewStoreClientFactory(config, viewDatabase, new Config.Search());
+        JenaProperties.setMetadataBaseIRI("http://localhost/iri/");
+        var viewDatabase = buildViewDatabaseConfig();
+        ViewsProperties viewsProperties = loadViewsConfig("src/test/resources/test-views.yaml");
+        SearchProperties searchProperties = new SearchProperties();
+        searchProperties.setCountRequestTimeout(60000);
+        searchProperties.setPageRequestTimeout(10000);
+        searchProperties.setMaxJoinItems(50);
+        var configuration = new ViewStoreClient.ViewStoreConfiguration(viewsProperties);
+        DataSource dataSource = getDataSource(viewDatabase);
+        MaterializedViewService materializedViewService = new MaterializedViewService(
+                dataSource, configuration, viewsProperties, searchProperties.getMaxJoinItems());
+        var viewStoreClientFactory = new ViewStoreClientFactory(
+                viewsProperties, viewDatabase, materializedViewService, dataSource, configuration);
 
-        var dsg = new TxnIndexDatasetGraph(DatasetGraphFactory.createTxnMem(), viewStoreClientFactory);
+        var dsg = new TxnIndexDatasetGraph(
+                viewsProperties, DatasetGraphFactory.createTxnMem(), viewStoreClientFactory, PUBLIC_URL);
         Dataset ds = wrap(dsg);
         Transactions tx = new SimpleTransactions(ds);
         Model model = ds.getDefaultModel();
-        var vocabulary = model.read("test-vocabulary.ttl");
+        var vocabulary = model.read("test-vocabulary.ttl", "TTL");
+        var systemVocabulary = model.read("system-vocabulary.ttl");
+        var userVocabulary = model.read("vocabulary.ttl");
 
-        var viewService = new ViewService(ConfigLoader.CONFIG, config, ds, viewStoreClientFactory, permissions);
+        dao = new DAO(model);
 
-        maintenanceService = new MaintenanceService(userService, ds, viewStoreClientFactory, viewService);
+        var viewStoreReader =
+                new ViewStoreReader(searchProperties, viewsProperties, viewStoreClientFactory, configuration);
+        var viewService = new ViewService(
+                searchProperties,
+                new CacheProperties(),
+                viewsProperties,
+                ds,
+                viewStoreReader,
+                viewStoreClientFactory,
+                permissions);
+
+        maintenanceService = new MaintenanceService(
+                viewsProperties, userService, ds, viewStoreClientFactory, viewService, PUBLIC_URL);
 
         workspaceService = new WorkspaceService(tx, userService);
 
         var context = new Context();
 
-        var davFactory = new DavFactory(model.createResource(baseUri), store, userService, context);
+        var davFactory = new DavFactory(
+                model.createResource(baseUri),
+                store,
+                userService,
+                context,
+                new WebDavProperties(),
+                userVocabulary,
+                vocabulary);
 
-        sut = new JdbcQueryService(
-                ConfigLoader.CONFIG.search,
-                loadViewsConfig("src/test/resources/test-views.yaml"),
-                viewStoreClientFactory,
-                tx,
-                davFactory.root);
+        sut = new JdbcQueryService(tx, davFactory.root, viewStoreReader);
 
         when(permissions.canWriteMetadata(any())).thenReturn(true);
 
-        api = new MetadataService(tx, vocabulary, new ComposedValidator(new UniqueLabelValidator()), permissions);
+        api = new MetadataService(
+                tx,
+                vocabulary,
+                systemVocabulary,
+                new ComposedValidator(List.of(new UniqueLabelValidator())),
+                permissions);
 
-        userAuthentication = mockAuthentication("user");
-        user = createTestUser("user", false);
-        new DAO(model).write(user);
-        workspaceManager = createTestUser("workspace-admin", false);
-        new DAO(model).write(workspaceManager);
-        workspaceManagerAuthentication = mockAuthentication("workspace-admin");
-        adminAuthentication = mockAuthentication("admin");
-        admin = createTestUser("admin", true);
-        new DAO(model).write(admin);
+        setupUsers();
 
         setupRequestContext();
-        request = getCurrentRequest();
+        var request = getCurrentRequest();
 
         selectAdmin();
 
-        var taxonomies = model.read("test-taxonomies.ttl");
+        var taxonomies = model.read("test-taxonomies.ttl", "TTL");
         api.put(taxonomies, Boolean.TRUE);
 
         var workspace = workspaceService.createWorkspace(
@@ -175,8 +202,18 @@ public class JdbcQueryServiceTest extends PostgresAwareTest {
 
         coll3.createNew("sample-s2-b-rna_copy.fastq", null, 0L, "chemical/seq-na-fastq");
 
-        var testdata = model.read("testdata.ttl");
+        var testdata = model.read("testdata.ttl", "TTL");
+        model.write(System.out, "TURTLE");
         api.put(testdata, Boolean.TRUE);
+    }
+
+    private void setupUsers() {
+        user = createTestUser("user", false);
+        dao.write(user);
+        workspaceManager = createTestUser("workspace-admin", false);
+        dao.write(workspaceManager);
+        admin = createTestUser("admin", true);
+        dao.write(admin);
     }
 
     @Test
@@ -187,7 +224,7 @@ public class JdbcQueryServiceTest extends PostgresAwareTest {
         request.setSize(10);
         var page = sut.retrieveViewPage(request);
         Assert.assertEquals(2, page.getRows().size());
-        var row = page.getRows().get(0);
+        var row = page.getRows().getFirst();
         Assert.assertEquals(
                 Set.of(
                         "Sample",
@@ -199,19 +236,19 @@ public class JdbcQueryServiceTest extends PostgresAwareTest {
                 row.keySet());
         Assert.assertEquals(
                 "Sample A for subject 1",
-                row.get("Sample").stream().findFirst().orElseThrow().getLabel());
+                row.get("Sample").stream().findFirst().orElseThrow().label());
         Assert.assertEquals(
                 "Blood",
-                row.get("Sample_nature").stream().findFirst().orElseThrow().getLabel());
+                row.get("Sample_nature").stream().findFirst().orElseThrow().label());
         Assert.assertEquals(
                 "Liver",
-                row.get("Sample_topography").stream().findFirst().orElseThrow().getLabel());
+                row.get("Sample_topography").stream().findFirst().orElseThrow().label());
         Assert.assertEquals(
                 45.2f,
                 ((Number) row.get("Sample_tumorCellularity").stream()
                                 .findFirst()
                                 .orElseThrow()
-                                .getValue())
+                                .value())
                         .floatValue(),
                 0.01);
     }
@@ -225,7 +262,7 @@ public class JdbcQueryServiceTest extends PostgresAwareTest {
         request.setSize(10);
         var page = sut.retrieveViewPage(request);
         Assert.assertEquals(2, page.getRows().size());
-        var row = page.getRows().get(0);
+        var row = page.getRows().getFirst();
         Assert.assertEquals(
                 Set.of(
                         "Sample",
@@ -237,19 +274,19 @@ public class JdbcQueryServiceTest extends PostgresAwareTest {
                 row.keySet());
         Assert.assertEquals(
                 "Sample A for subject 1",
-                row.get("Sample").stream().findFirst().orElseThrow().getLabel());
+                row.get("Sample").stream().findFirst().orElseThrow().label());
         Assert.assertEquals(
                 "Blood",
-                row.get("Sample_nature").stream().findFirst().orElseThrow().getLabel());
+                row.get("Sample_nature").stream().findFirst().orElseThrow().label());
         Assert.assertEquals(
                 "Liver",
-                row.get("Sample_topography").stream().findFirst().orElseThrow().getLabel());
+                row.get("Sample_topography").stream().findFirst().orElseThrow().label());
         Assert.assertEquals(
                 45.2f,
                 ((Number) row.get("Sample_tumorCellularity").stream()
                                 .findFirst()
                                 .orElseThrow()
-                                .getValue())
+                                .value())
                         .floatValue(),
                 0.01);
     }
@@ -305,20 +342,18 @@ public class JdbcQueryServiceTest extends PostgresAwareTest {
         request.setIncludeJoinedViews(true);
         var page = sut.retrieveViewPage(request);
         Assert.assertEquals(2, page.getRows().size());
-        var row1 = page.getRows().get(0);
+        var row1 = page.getRows().getFirst();
         Assert.assertEquals(
                 "Sample A for subject 1",
-                row1.get("Sample").stream().findFirst().orElseThrow().getLabel());
+                row1.get("Sample").stream().findFirst().orElseThrow().label());
         Assert.assertEquals(1, row1.get("Subject").size());
         var row2 = page.getRows().get(1);
         Assert.assertEquals(
                 "Sample B for subject 2",
-                row2.get("Sample").stream().findFirst().orElseThrow().getLabel());
+                row2.get("Sample").stream().findFirst().orElseThrow().label());
         Assert.assertEquals(
                 Set.of("RNA-seq", "Whole genome sequencing"),
-                row2.get("Resource_analysisType").stream()
-                        .map(ValueDTO::getLabel)
-                        .collect(Collectors.toSet()));
+                row2.get("Resource_analysisType").stream().map(ValueDto::label).collect(Collectors.toSet()));
     }
 
     @Test
@@ -331,20 +366,18 @@ public class JdbcQueryServiceTest extends PostgresAwareTest {
         request.setIncludeJoinedViews(true);
         var page = sut.retrieveViewPage(request);
         Assert.assertEquals(2, page.getRows().size());
-        var row1 = page.getRows().get(0);
+        var row1 = page.getRows().getFirst();
         Assert.assertEquals(
                 "Sample A for subject 1",
-                row1.get("Sample").stream().findFirst().orElseThrow().getLabel());
+                row1.get("Sample").stream().findFirst().orElseThrow().label());
         Assert.assertEquals(1, row1.get("Subject").size());
         var row2 = page.getRows().get(1);
         Assert.assertEquals(
                 "Sample B for subject 2",
-                row2.get("Sample").stream().findFirst().orElseThrow().getLabel());
+                row2.get("Sample").stream().findFirst().orElseThrow().label());
         Assert.assertEquals(
                 Set.of("RNA-seq", "Whole genome sequencing"),
-                row2.get("Resource_analysisType").stream()
-                        .map(ValueDTO::getLabel)
-                        .collect(Collectors.toSet()));
+                row2.get("Resource_analysisType").stream().map(ValueDto::label).collect(Collectors.toSet()));
     }
 
     @Test
@@ -353,7 +386,7 @@ public class JdbcQueryServiceTest extends PostgresAwareTest {
         var requestParams = new CountRequest();
         requestParams.setView("Sample");
         var result = sut.count(requestParams);
-        assertEquals(2, result.getCount());
+        assertEquals(2, result.count());
     }
 
     @Test
@@ -361,7 +394,7 @@ public class JdbcQueryServiceTest extends PostgresAwareTest {
         var request = new CountRequest();
         request.setView("Subject");
         var result = sut.count(request);
-        Assert.assertEquals(1, result.getCount());
+        Assert.assertEquals(1, result.count());
     }
 
     @Test
@@ -369,6 +402,6 @@ public class JdbcQueryServiceTest extends PostgresAwareTest {
         var request = new CountRequest();
         request.setView("Resource");
         var result = sut.count(request);
-        Assert.assertEquals(4, result.getCount());
+        Assert.assertEquals(4, result.count());
     }
 }

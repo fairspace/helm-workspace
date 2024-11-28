@@ -14,6 +14,7 @@ import org.apache.jena.rdf.model.Statement;
 import org.apache.jena.shacl.vocabulary.SHACLM;
 import org.apache.jena.util.iterator.ExtendedIterator;
 import org.apache.jena.vocabulary.RDF;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 import io.fairspace.saturn.rdf.transactions.Transactions;
 import io.fairspace.saturn.services.AccessDeniedException;
@@ -30,13 +31,13 @@ import static io.fairspace.saturn.rdf.ModelUtils.updatedView;
 import static io.fairspace.saturn.rdf.SparqlUtils.toXSDDateTimeLiteral;
 import static io.fairspace.saturn.services.users.UserService.currentUserAsSymbol;
 import static io.fairspace.saturn.vocabulary.ShapeUtils.getPropertyShapesForResource;
-import static io.fairspace.saturn.vocabulary.Vocabularies.SYSTEM_VOCABULARY;
 
 import static org.apache.jena.rdf.model.ModelFactory.createDefaultModel;
 
 public class MetadataService {
     private final Transactions transactions;
     private final Model vocabulary;
+    private final Model systemVocabulary;
     private final MetadataRequestValidator validator;
     private final MetadataPermissions permissions;
 
@@ -46,11 +47,13 @@ public class MetadataService {
 
     public MetadataService(
             Transactions transactions,
-            Model vocabulary,
+            @Qualifier("vocabulary") Model vocabulary,
+            Model systemVocabulary,
             MetadataRequestValidator validator,
             MetadataPermissions permissions) {
         this.transactions = transactions;
         this.vocabulary = vocabulary;
+        this.systemVocabulary = systemVocabulary;
         this.validator = validator;
         this.permissions = permissions;
     }
@@ -153,7 +156,7 @@ public class MetadataService {
             }
             var machineOnly = resource.listProperties(RDF.type)
                     .mapWith(Statement::getObject)
-                    .filterKeep(SYSTEM_VOCABULARY::containsResource)
+                    .filterKeep(systemVocabulary::containsResource)
                     .hasNext();
 
             if (machineOnly) {

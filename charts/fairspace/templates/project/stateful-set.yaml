@@ -100,7 +100,7 @@ spec:
 {{- end }}
           livenessProbe:
             httpGet:
-              path:  /liveness
+              path:  /actuator/health/liveness
               port: 8091
             initialDelaySeconds: {{ .Values.saturn.livenessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.saturn.livenessProbe.periodSeconds }}
@@ -108,8 +108,8 @@ spec:
             timeoutSeconds: {{ .Values.saturn.livenessProbe.timeoutSeconds }}
           readinessProbe:
             httpGet:
-              path:  /api/health/
-              port: 8090
+              path:  /actuator/health/readiness
+              port: 8091
             periodSeconds: {{ .Values.saturn.readinessProbe.periodSeconds }}
             successThreshold: {{ .Values.saturn.readinessProbe.successThreshold }}
             timeoutSeconds: {{ .Values.saturn.readinessProbe.timeoutSeconds }}

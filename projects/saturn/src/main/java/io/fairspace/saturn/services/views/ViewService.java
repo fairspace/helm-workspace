@@ -20,16 +20,24 @@ import org.apache.jena.query.QueryFactory;
 import org.apache.jena.query.QuerySolution;
 import org.apache.jena.query.QuerySolutionMap;
 import org.apache.jena.rdf.model.Literal;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.lang.Nullable;
+import org.springframework.stereotype.Service;
 
-import io.fairspace.saturn.config.Config;
-import io.fairspace.saturn.config.ViewsConfig;
+import io.fairspace.saturn.config.properties.CacheProperties;
+import io.fairspace.saturn.config.properties.SearchProperties;
+import io.fairspace.saturn.config.properties.ViewsProperties;
+import io.fairspace.saturn.controller.dto.ColumnDto;
+import io.fairspace.saturn.controller.dto.FacetDto;
+import io.fairspace.saturn.controller.dto.ValueDto;
+import io.fairspace.saturn.controller.dto.ViewDto;
 import io.fairspace.saturn.rdf.search.FilteredDatasetGraph;
 import io.fairspace.saturn.services.AccessDeniedException;
 import io.fairspace.saturn.services.metadata.MetadataPermissions;
 import io.fairspace.saturn.vocabulary.FS;
 
-import static io.fairspace.saturn.config.ViewsConfig.ColumnType;
-import static io.fairspace.saturn.config.ViewsConfig.View;
+import static io.fairspace.saturn.config.properties.ViewsProperties.ColumnType;
+import static io.fairspace.saturn.config.properties.ViewsProperties.View;
 
 import static java.time.Instant.ofEpochMilli;
 import static java.util.Optional.ofNullable;
@@ -38,85 +46,90 @@ import static org.apache.jena.rdf.model.ResourceFactory.createResource;
 import static org.apache.jena.system.Txn.calculateRead;
 
 @Log4j2
+@Service
 public class ViewService {
 
     private static final Query VALUES_QUERY = QueryFactory.create(String.format(
             """
-            PREFIX fs: <%s>
-            PREFIX rdfs:  <http://www.w3.org/2000/01/rdf-schema#>
+                    PREFIX fs: <%s>
+                    PREFIX rdfs:  <http://www.w3.org/2000/01/rdf-schema#>
 
-            SELECT ?value ?label
-            WHERE {
-               ?value a ?type ; rdfs:label ?label .
-               FILTER EXISTS {
-                  ?subject ?predicate ?value
-                  FILTER NOT EXISTS { ?subject fs:dateDeleted ?anyDateDeleted }
-               }
-               FILTER NOT EXISTS { ?value fs:dateDeleted ?anyDateDeleted }
-            } ORDER BY ?label
-            """,
+                    SELECT ?value ?label
+                    WHERE {
+                       ?value a ?type ; rdfs:label ?label .
+                       FILTER EXISTS {
+                          ?subject ?predicate ?value
+                          FILTER NOT EXISTS { ?subject fs:dateDeleted ?anyDateDeleted }
+                       }
+                       FILTER NOT EXISTS { ?value fs:dateDeleted ?anyDateDeleted }
+                    } ORDER BY ?label
+                    """,
             FS.NS));
 
     private static final Query RESOURCE_TYPE_VALUES_QUERY = QueryFactory.create(String.format(
             """
-            PREFIX fs: <%s>
-            SELECT ?value ?label
-            WHERE {
-               VALUES (?value ?label) {
-                  (fs:Collection "Collection")
-                  (fs:Directory "Directory")
-                  (fs:File "File")
-               }
-            }
-            """,
+                    PREFIX fs: <%s>
+                    SELECT ?value ?label
+                    WHERE {
+                       VALUES (?value ?label) {
+                          (fs:Collection "Collection")
+                          (fs:Directory "Directory")
+                          (fs:File "File")
+                       }
+                    }
+                    """,
             FS.NS));
 
     private static final Query BOUNDS_QUERY = QueryFactory.create(String.format(
             """
-            PREFIX fs: <%s>
+                    PREFIX fs: <%s>
 
-            SELECT (MIN(?value) AS ?min) (MAX(?value) AS ?max)
-            WHERE {
-               ?subject ?predicate ?value
-               FILTER NOT EXISTS { ?subject fs:dateDeleted ?anyDateDeleted }
-            }
-            """,
+                    SELECT (MIN(?value) AS ?min) (MAX(?value) AS ?max)
+                    WHERE {
+                       ?subject ?predicate ?value
+                       FILTER NOT EXISTS { ?subject fs:dateDeleted ?anyDateDeleted }
+                    }
+                    """,
             FS.NS));
 
     private static final Query BOOLEAN_VALUE_QUERY = QueryFactory.create(String.format(
             """
-            PREFIX fs: <%s>
-            SELECT ?booleanValue
-            WHERE {
-               ?subject ?predicate ?booleanValue
-               FILTER NOT EXISTS { ?subject fs:dateDeleted ?anyDateDeleted }
-            }
-            """,
+                    PREFIX fs: <%s>
+                    SELECT ?booleanValue
+                    WHERE {
+                       ?subject ?predicate ?booleanValue
+                       FILTER NOT EXISTS { ?subject fs:dateDeleted ?anyDateDeleted }
+                    }
+                    """,
             FS.NS));
     public static final String USER_DOES_NOT_HAVE_PERMISSIONS_TO_READ_FACETS =
             "User does not have permissions to read facets";
 
-    private final Config.Search searchConfig;
-    private final ViewsConfig viewsConfig;
+    private final SearchProperties searchProperties;
+    private final ViewsProperties viewsProperties;
     private final Dataset ds;
+    private final ViewStoreReader viewStoreReader;
     private final ViewStoreClientFactory viewStoreClientFactory;
     private final MetadataPermissions metadataPermissions;
-    private final LoadingCache<Boolean, List<FacetDTO>> facetsCache;
-    private final LoadingCache<Boolean, List<ViewDTO>> viewsCache;
+    private final LoadingCache<Boolean, List<FacetDto>> facetsCache;
+    private final LoadingCache<Boolean, List<ViewDto>> viewsCache;
 
     public ViewService(
-            Config config,
-            ViewsConfig viewsConfig,
-            Dataset ds,
-            ViewStoreClientFactory viewStoreClientFactory,
+            SearchProperties searchProperties,
+            CacheProperties cacheProperties,
+            ViewsProperties viewsProperties,
+            @Qualifier("filteredDataset") Dataset ds,
+            ViewStoreReader viewStoreReader,
+            @Nullable ViewStoreClientFactory viewStoreClientFactory,
             MetadataPermissions metadataPermissions) {
-        this.searchConfig = config.search;
-        this.viewsConfig = viewsConfig;
+        this.searchProperties = searchProperties;
+        this.viewsProperties = viewsProperties;
         this.ds = ds;
+        this.viewStoreReader = viewStoreReader;
         this.viewStoreClientFactory = viewStoreClientFactory;
         this.metadataPermissions = metadataPermissions;
-        this.facetsCache = buildCache(this::fetchFacets, config.caches.facets);
-        this.viewsCache = buildCache(this::fetchViews, config.caches.views);
+        this.facetsCache = buildCache(this::fetchFacets, cacheProperties.getFacets());
+        this.viewsCache = buildCache(this::fetchViews, cacheProperties.getViews());
         refreshCaches();
     }
 
@@ -132,7 +145,7 @@ public class ViewService {
         log.info("Caches refreshing/warming up successfully finished");
     }
 
-    public List<FacetDTO> getFacets() {
+    public List<FacetDto> getFacets() {
         if (!metadataPermissions.canReadFacets()) {
             // this check is needed for cached data only as, otherwise,
             // the check will be performed during retrieving data from Jena
@@ -145,7 +158,7 @@ public class ViewService {
         }
     }
 
-    public List<ViewDTO> getViews() {
+    public List<ViewDto> getViews() {
         try {
             return viewsCache.get(Boolean.TRUE);
         } catch (ExecutionException e) {
@@ -153,57 +166,57 @@ public class ViewService {
         }
     }
 
-    protected List<ViewDTO> fetchViews() {
-        return viewsConfig.views.stream()
+    protected List<ViewDto> fetchViews() {
+        return viewsProperties.views.stream()
                 .map(v -> {
-                    var columns = new ArrayList<ColumnDTO>();
+                    var columns = new ArrayList<ColumnDto>();
 
                     // The entity label is the first column displayed,
                     // if you want a column before this label, assign a negative displayIndex value in views.yaml
                     final int ENTITY_LABEL_INDEX = 0;
 
-                    columns.add(new ColumnDTO(
+                    columns.add(new ColumnDto(
                             v.name,
                             v.itemName == null ? v.name : v.itemName,
                             ColumnType.Identifier,
                             ENTITY_LABEL_INDEX));
                     for (var c : v.columns) {
-                        columns.add(new ColumnDTO(v.name + "_" + c.name, c.title, c.type, c.displayIndex));
+                        columns.add(new ColumnDto(v.name + "_" + c.name, c.title, c.type, c.displayIndex));
                     }
                     for (var j : v.join) {
-                        var joinView = viewsConfig.getViewConfig(j.view).orElse(null);
+                        var joinView = viewsProperties.getViewConfig(j.view).orElse(null);
                         if (joinView == null) {
                             continue;
                         }
                         if (j.include.contains("id")) {
-                            columns.add(new ColumnDTO(
+                            columns.add(new ColumnDto(
                                     joinView.name, joinView.title, ColumnType.Identifier, j.displayIndex));
                         }
                         for (var c : joinView.columns) {
                             if (!j.include.contains(c.name)) {
                                 continue;
                             }
-                            columns.add(new ColumnDTO(joinView.name + "_" + c.name, c.title, c.type, j.displayIndex));
+                            columns.add(new ColumnDto(joinView.name + "_" + c.name, c.title, c.type, j.displayIndex));
                         }
                     }
-                    return new ViewDTO(v.name, v.title, columns, v.maxDisplayCount);
+                    return new ViewDto(v.name, v.title, columns, v.maxDisplayCount);
                 })
                 .collect(toList());
     }
 
-    protected List<FacetDTO> fetchFacets() {
-        return calculateRead(ds, () -> viewsConfig.views.stream()
+    protected List<FacetDto> fetchFacets() {
+        return calculateRead(ds, () -> viewsProperties.views.stream()
                 .flatMap(view -> view.columns.stream()
                         .map(column -> getFacetInfo(view, column))
-                        .filter(f -> (f.getMin() != null
-                                || f.getMax() != null
-                                || (f.getValues() != null && f.getValues().size() > 1)
-                                || f.getBooleanValue() != null)))
+                        .filter(f -> (f.min() != null
+                                || f.max() != null
+                                || (f.values() != null && f.values().size() > 1)
+                                || f.booleanValue() != null)))
                 .collect(toList()));
     }
 
-    private FacetDTO getFacetInfo(View view, View.Column column) {
-        List<ValueDTO> values = null;
+    private FacetDto getFacetInfo(View view, View.Column column) {
+        List<ValueDto> values = null;
         Object min = null;
         Object max = null;
         Boolean booleanValue = null;
@@ -223,7 +236,7 @@ public class ViewService {
                     for (var row : (Iterable<QuerySolution>) execution::execSelect) {
                         var resource = row.getResource("value");
                         var label = row.getLiteral("label").getString();
-                        values.add(new ValueDTO(label, resource.getURI()));
+                        values.add(new ValueDto(label, resource.getURI()));
                     }
                 }
             }
@@ -267,7 +280,7 @@ public class ViewService {
             }
         }
 
-        return new FacetDTO(view.name + "_" + column.name, column.title, column.type, values, booleanValue, min, max);
+        return new FacetDto(view.name + "_" + column.name, column.title, column.type, values, booleanValue, min, max);
     }
 
     private Object convertLiteralValue(Object value) {
@@ -282,16 +295,14 @@ public class ViewService {
         if (!EnumSet.of(ColumnType.Date, ColumnType.Number).contains(column.type)) {
             return null;
         }
-        try (var reader = new ViewStoreReader(searchConfig, viewsConfig, viewStoreClientFactory)) {
-            return reader.aggregate(view.name, column.name);
-        }
+        return viewStoreReader.aggregate(view.name, column.name);
     }
 
     private <T> LoadingCache<Boolean, List<T>> buildCache(
-            Supplier<List<T>> fetchSupplier, Config.CacheConfig cacheConfig) {
+            Supplier<List<T>> fetchSupplier, CacheProperties.Cache cacheConfig) {
         var cacheBuilder = CacheBuilder.newBuilder();
-        if (cacheConfig.autoRefreshEnabled) {
-            cacheBuilder.refreshAfterWrite(cacheConfig.refreshFrequencyInHours, TimeUnit.HOURS);
+        if (cacheConfig.isAutoRefreshEnabled()) {
+            cacheBuilder.refreshAfterWrite(cacheConfig.getRefreshFrequencyInHours(), TimeUnit.HOURS);
         }
         return cacheBuilder.build(new CacheLoader<>() {
             @Override
@@ -299,9 +310,9 @@ public class ViewService {
                 var cachedObjects = fetchSupplier.get();
                 log.info(
                         "List of {} has been cached, {} {} in total",
-                        cacheConfig.name,
+                        cacheConfig.getName(),
                         cachedObjects.size(),
-                        cacheConfig.name);
+                        cacheConfig.getName());
                 return cachedObjects;
             }
         });

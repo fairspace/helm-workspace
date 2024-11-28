@@ -17,6 +17,7 @@ import io.milton.property.PropertySource.PropertySetException;
 import io.milton.resource.*;
 import org.apache.jena.rdf.model.*;
 import org.apache.jena.rdf.model.Resource;
+import org.apache.jena.rdf.model.Statement;
 import org.apache.jena.shacl.vocabulary.SHACL;
 import org.apache.jena.vocabulary.RDF;
 import org.apache.jena.vocabulary.RDFS;
@@ -30,7 +31,6 @@ import static io.fairspace.saturn.audit.Audit.audit;
 import static io.fairspace.saturn.auth.RequestContext.getUserURI;
 import static io.fairspace.saturn.rdf.ModelUtils.*;
 import static io.fairspace.saturn.rdf.SparqlUtils.parseXSDDateTimeLiteral;
-import static io.fairspace.saturn.vocabulary.Vocabularies.USER_VOCABULARY;
 import static io.fairspace.saturn.webdav.DavFactory.childSubject;
 import static io.fairspace.saturn.webdav.WebDAVServlet.*;
 
@@ -52,11 +52,13 @@ public abstract class BaseResource
     protected final DavFactory factory;
     public final Resource subject;
     protected final Access access;
+    private final Model userVocabulary;
 
-    BaseResource(DavFactory factory, Resource subject, Access access) {
+    BaseResource(DavFactory factory, Resource subject, Access access, Model userVocabulary) {
         this.factory = factory;
         this.subject = subject;
         this.access = access;
+        this.userVocabulary = userVocabulary;
     }
 
     @Override
@@ -326,7 +328,7 @@ public abstract class BaseResource
     }
 
     public Set<String> metadataLinks() {
-        var userVocabularyPaths = USER_VOCABULARY
+        var userVocabularyPaths = userVocabulary
                 .listStatements()
                 .filterKeep(stmt -> stmt.getObject().isResource()
                         && stmt.getPredicate().getURI().equals(SHACL.path.getURI()))

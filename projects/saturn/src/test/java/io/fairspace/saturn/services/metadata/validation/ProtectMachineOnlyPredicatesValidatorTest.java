@@ -12,10 +12,13 @@ import io.fairspace.saturn.vocabulary.FS;
 
 import static io.fairspace.saturn.rdf.ModelUtils.EMPTY_MODEL;
 import static io.fairspace.saturn.rdf.ModelUtils.modelOf;
-import static io.fairspace.saturn.vocabulary.Vocabularies.SYSTEM_VOCABULARY;
 
-import static org.apache.jena.rdf.model.ResourceFactory.*;
-import static org.mockito.Mockito.*;
+import static org.apache.jena.rdf.model.ResourceFactory.createProperty;
+import static org.apache.jena.rdf.model.ResourceFactory.createResource;
+import static org.apache.jena.rdf.model.ResourceFactory.createStatement;
+import static org.apache.jena.riot.RDFDataMgr.loadModel;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @RunWith(MockitoJUnitRunner.class)
 public class ProtectMachineOnlyPredicatesValidatorTest {
@@ -27,7 +30,7 @@ public class ProtectMachineOnlyPredicatesValidatorTest {
     private static final Property P2 = createProperty("https://fairspace.nl/ontology/P2");
 
     private final ProtectMachineOnlyPredicatesValidator validator =
-            new ProtectMachineOnlyPredicatesValidator(SYSTEM_VOCABULARY);
+            new ProtectMachineOnlyPredicatesValidator(loadModel("system-vocabulary.ttl"));
 
     @Mock
     private ViolationHandler violationHandler;

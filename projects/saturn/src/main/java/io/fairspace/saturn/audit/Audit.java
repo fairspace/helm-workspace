@@ -2,10 +2,11 @@ package io.fairspace.saturn.audit;
 
 import java.util.Objects;
 
-import org.apache.logging.log4j.*;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
 
-import static io.fairspace.saturn.auth.RequestContext.getAccessToken;
+import static io.fairspace.saturn.auth.RequestContext.getClaims;
 
 public class Audit {
     private static final Logger log = LogManager.getLogger("audit");
@@ -19,16 +20,18 @@ public class Audit {
             }
         }
 
-        var token = getAccessToken();
+        var claims = getClaims();
+        String preferredUsername = claims.getPreferredUsername();
 
-        if (token.getPreferredUsername() != null) {
-            ThreadContext.put("user_name", token.getPreferredUsername());
+        if (preferredUsername != null) {
+            ThreadContext.put("user_name", preferredUsername);
         }
 
-        if (token.getEmail() != null) {
-            ThreadContext.put("user_email", token.getEmail());
+        String email = claims.getEmail();
+        if (email != null) {
+            ThreadContext.put("user_email", email);
         }
-        ThreadContext.put("user_id", token.getSubject());
+        ThreadContext.put("user_id", claims.getSubject());
 
         log.trace(event);
 

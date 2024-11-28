@@ -3,25 +3,30 @@ package io.fairspace.saturn.webdav;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Optional;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 
 import io.milton.config.HttpManagerBuilder;
 import io.milton.event.ResponseEvent;
-import io.milton.http.*;
+import io.milton.http.AuthenticationService;
+import io.milton.http.HttpManager;
+import io.milton.http.ProtocolHandlers;
+import io.milton.http.Request;
+import io.milton.http.RequestParseException;
+import io.milton.http.ResourceFactory;
+import io.milton.http.Response;
 import io.milton.http.http11.DefaultHttp11ResponseHandler;
 import io.milton.http.webdav.ResourceTypeHelper;
 import io.milton.http.webdav.WebDavResponseHandler;
 import io.milton.resource.Resource;
 import io.milton.servlet.ServletResponse;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.apache.jena.rdf.model.Literal;
 
 import io.fairspace.saturn.rdf.transactions.Transactions;
 import io.fairspace.saturn.webdav.blobstore.BlobInfo;
 import io.fairspace.saturn.webdav.blobstore.BlobStore;
 
-import static io.fairspace.saturn.App.API_PREFIX;
 import static io.fairspace.saturn.auth.RequestContext.getCurrentRequest;
 import static io.fairspace.saturn.rdf.SparqlUtils.toXSDDateTimeLiteral;
 
@@ -42,6 +47,7 @@ public class WebDAVServlet extends HttpServlet {
     private static final String TIMESTAMP_ATTRIBUTE = "TIMESTAMP";
     public static final String POST_COMMIT_ACTION_ATTRIBUTE = "POST_COMMIT";
     public static final String ERROR_MESSAGE = "ERROR_MESSAGE";
+    public static final String VERSION = "version";
 
     private final HttpManager httpManager;
     private final BlobStore store;
@@ -123,7 +129,9 @@ public class WebDAVServlet extends HttpServlet {
 
     public static Integer fileVersion() {
         return Optional.ofNullable(getCurrentRequest())
-                .map(r -> (isEmpty(r.getParameter("version")) ? r.getHeader("Version") : r.getParameter("version")))
+                .map(r -> (isEmpty(getCurrentRequest().getParameter(VERSION))
+                        ? r.getHeader("Version")
+                        : getCurrentRequest().getParameter(VERSION)))
                 .map(Integer::parseInt)
                 .orElse(null);
     }
@@ -143,7 +151,8 @@ public class WebDAVServlet extends HttpServlet {
     }
 
     public static boolean isMetadataRequest() {
-        return (API_PREFIX + "/metadata/").equalsIgnoreCase(getCurrentRequest().getServletPath());
+        // todo: test the change
+        return ("/api/metadata/").equalsIgnoreCase(getCurrentRequest().getRequestURI());
     }
 
     public static BlobInfo getBlob() {

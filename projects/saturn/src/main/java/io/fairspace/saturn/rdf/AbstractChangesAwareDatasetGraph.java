@@ -1,9 +1,9 @@
 package io.fairspace.saturn.rdf;
 
 import org.apache.jena.graph.Node;
+import org.apache.jena.query.text.changes.DatasetGraphTextMonitor;
+import org.apache.jena.query.text.changes.TextQuadAction;
 import org.apache.jena.sparql.core.DatasetGraph;
-import org.apache.jena.sparql.core.DatasetGraphMonitor;
-import org.apache.jena.sparql.core.QuadAction;
 
 import static java.lang.Integer.toHexString;
 import static java.lang.System.identityHashCode;
@@ -15,7 +15,7 @@ import static java.lang.System.identityHashCode;
  * That can be very inconvenient, if you need to implement complex logic involving not only quad operations, but also
  * some other aspect's of the dataset graph;s behavior, e.g. transaction lifecycle.
  */
-public abstract class AbstractChangesAwareDatasetGraph extends DatasetGraphMonitor {
+public abstract class AbstractChangesAwareDatasetGraph extends DatasetGraphTextMonitor {
 
     public AbstractChangesAwareDatasetGraph(DatasetGraph dsg) {
         super(dsg, new DelegatingDatasetChanges(), true);
@@ -23,7 +23,7 @@ public abstract class AbstractChangesAwareDatasetGraph extends DatasetGraphMonit
         ((DelegatingDatasetChanges) getMonitor()).setChangeListener(this::onChange); // delegates handling to itself
     }
 
-    protected void onChange(QuadAction action, Node graph, Node subject, Node predicate, Node object) {}
+    protected void onChange(TextQuadAction action, Node graph, Node subject, Node predicate, Node object) {}
 
     @Override
     public String toString() {

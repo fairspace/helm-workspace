@@ -5,6 +5,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import io.fairspace.saturn.config.properties.ViewsProperties;
 import io.fairspace.saturn.services.AccessDeniedException;
 import io.fairspace.saturn.services.ConflictException;
 import io.fairspace.saturn.services.NotAvailableException;
@@ -13,6 +14,7 @@ import io.fairspace.saturn.services.users.UserService;
 import io.fairspace.saturn.services.views.ViewService;
 import io.fairspace.saturn.services.views.ViewStoreClientFactory;
 
+import static io.fairspace.saturn.TestUtils.loadViewsConfig;
 import static io.fairspace.saturn.services.maintenance.MaintenanceService.MAINTENANCE_IS_IN_PROGRESS;
 import static io.fairspace.saturn.services.maintenance.MaintenanceService.SERVICE_NOT_AVAILABLE;
 
@@ -31,8 +33,9 @@ public class MaintenanceServiceTest {
     private final Dataset dataset = mock(Dataset.class);
     private final ViewStoreClientFactory viewStoreClientFactory = mock(ViewStoreClientFactory.class);
     private final ViewService viewService = mock(ViewService.class);
-    private final MaintenanceService sut =
-            spy(new MaintenanceService(userService, dataset, viewStoreClientFactory, viewService));
+    private final ViewsProperties viewsProperties = loadViewsConfig("src/test/resources/test-views.yaml");
+    private final MaintenanceService sut = spy(new MaintenanceService(
+            viewsProperties, userService, dataset, viewStoreClientFactory, viewService, "localhost"));
 
     @Test
     public void testReindexingIsNotAllowedForNotAdmins() {

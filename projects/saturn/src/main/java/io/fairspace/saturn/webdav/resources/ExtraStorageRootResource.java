@@ -4,8 +4,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-import io.milton.http.Auth;
-import io.milton.http.Request;
 import io.milton.http.exceptions.BadRequestException;
 import io.milton.http.exceptions.ConflictException;
 import io.milton.http.exceptions.NotAuthorizedException;
@@ -15,11 +13,11 @@ import lombok.extern.log4j.Log4j2;
 import org.apache.jena.vocabulary.RDF;
 import org.apache.jena.vocabulary.RDFS;
 
+import io.fairspace.saturn.config.properties.WebDavProperties;
 import io.fairspace.saturn.vocabulary.FS;
 import io.fairspace.saturn.webdav.Access;
 import io.fairspace.saturn.webdav.DavFactory;
 
-import static io.fairspace.saturn.config.ConfigLoader.CONFIG;
 import static io.fairspace.saturn.webdav.DavFactory.childSubject;
 
 import static io.milton.http.ResponseStatus.SC_FORBIDDEN;
@@ -27,13 +25,11 @@ import static io.milton.http.ResponseStatus.SC_FORBIDDEN;
 @Log4j2
 public class ExtraStorageRootResource extends RootResource {
 
-    public ExtraStorageRootResource(DavFactory factory) {
-        super(factory);
-    }
+    private final WebDavProperties webDavProperties;
 
-    @Override
-    public boolean authorise(Request request, Request.Method method, Auth auth) {
-        return true;
+    public ExtraStorageRootResource(DavFactory factory, WebDavProperties webDavProperties) {
+        super(factory);
+        this.webDavProperties = webDavProperties;
     }
 
     @Override
@@ -49,7 +45,7 @@ public class ExtraStorageRootResource extends RootResource {
     @Override
     public CollectionResource createCollection(String name)
             throws ConflictException, BadRequestException, NotAuthorizedException {
-        if (!CONFIG.extraStorage.defaultRootCollections.contains(name)) {
+        if (!webDavProperties.getExtraStorage().getDefaultRootCollections().contains(name)) {
             // Currently all root extra storage directories should be specified in the extra storage config
             throw new NotAuthorizedException(
                     String.format("Directory with name %s not specified in the configuration.", name),

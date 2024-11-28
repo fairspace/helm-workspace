@@ -2238,10 +2238,10 @@ The data models for these metadata are defined using the {SHACL}[Shapes Constrai
 * The customisable data model includes the custom (shared)
   metadata entities, custom controlled vocabulary types,
   and custom properties of the system entities.
-  The default custom data model is defined in link:projects/saturn/vocabulary.ttl[vocabulary.ttl].
+  The default custom data model is defined in link:projects/saturn/src/main/resources/vocabulary.ttl[vocabulary.ttl].
   This data model can be overriden by a data more suitable for your organisation.
 
-A schematic overview of the default data model in link:projects/saturn/vocabulary.ttl[vocabulary.ttl]:
+A schematic overview of the default data model in link:projects/saturn/src/main/resources/vocabulary.ttl[vocabulary.ttl]:
 
 image:docs/images/diagrams/CDR data model.png[CDR data model]
 
@@ -2462,8 +2462,8 @@ use `--set-file` option:
 +
 This should also restart the Saturn pod. If not, trigger the restart manually.
 +
-For local development - replace vocabulary file in link:projects/saturn/vocabulary.ttl[projects/saturn/vocabulary.ttl]
-and views configuration in link:projects/saturn/views.ttl[projects/saturn/views.ttl].
+For local development - replace vocabulary file in link:projects/saturn/src/main/resources/vocabulary.ttl[vocabulary.ttl]
+and views configuration in link:projects/saturn/src/main/resources/views.yaml[views.yaml].
 Restart Saturn run.
 +
 . Load data for new entities or properties.
@@ -2474,7 +2474,7 @@ Restart Saturn run.
 
 For controlled vocabulary types, e.g., _Gender_ and _Species_ in the example, you should insert the allowed values in the database by uploading
 a taxonomies file using the <<RDF metadata>> API.
-An example taxonomy is in link:projects/saturn/taxonomies.ttl[taxonomies.ttl].
+An example taxonomy is in link:projects/saturn/src/main/resources/taxonomies.ttl[taxonomies.ttl].
 
 It is preferred to use existing standard taxonomies and labels.
 If that is not possible, please define your own namespaces for
@@ -2526,7 +2526,7 @@ ncbitaxon:10090 a example:Species ;
 
 For the metadata pages in the user interface, a view configuration needs to be created
 that specifies the tables and columns.
-An example can be found in link:projects/saturn/views.yaml[views.yaml]
+An example can be found in link:projects/saturn/src/main/resources/views.yaml[views.yaml]
 
 
 
@@ -3233,14 +3233,14 @@ and, together with link:https://bitbucket.org/connect2id/nimbus-jose-jwt[Nimbus 
 The heart of Fairspace, back-end application handling all the logic and connection to the storages.
 Data repository and catalog.
 
-Saturn is served as link:https://jena.apache.org/documentation/fuseki2/[Apache Jena Fuseki SPARQL] server,
-embedded into link:https://www.eclipse.org/jetty/[Jetty] Web server.
+Saturn is also a link:https://spring.io/projects/spring-boot[Java Spring Boot] application with embedded Tomcat web server.
 
 Saturn uses link:https://jena.apache.org/documentation/rdf/[Apache Jena RDF] for handling RDF graphs,
 serialisation of triples and TDB triple store connection.
 All data within Fairspace, except to uploaded files and logs, are stored in Apache Jena RDF database.
 
-For security, Saturn is integrated with Keycloak using link:https://www.keycloak.org/docs/latest/securing_apps/#_jetty9_adapter[Keycloak Jetty client adapter].
+Saturn is secured using OAuth2 with Keycloak, integrated with Spring Boot and
+link:https://docs.spring.io/spring-security/reference/servlet/oauth2/[Spring Security].
 It enables user authentication with access tokens.
 
 Saturn is also responsible for authorization of users in Fairspace - it includes user access validators

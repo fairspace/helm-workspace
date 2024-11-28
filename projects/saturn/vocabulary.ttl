@@ -555,12 +555,14 @@ curie:TumorPathologyEvent a rdfs:Class, sh:NodeShape ;
     [
         sh:name "Topography" ;
         sh:description "The topography of the tumor." ;
+        sh:maxCount 1 ;
         sh:class curie:Topography ;
         sh:path curie:topography
     ],
     [
         sh:name "Morphology" ;
         sh:description "The morphology of the tumor." ;
+        sh:maxCount 1 ;
         sh:class curie:Morphology ;
         sh:path curie:tumorMorphology
     ],

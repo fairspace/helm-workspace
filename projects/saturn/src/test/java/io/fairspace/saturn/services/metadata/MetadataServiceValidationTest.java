@@ -73,7 +73,8 @@ public class MetadataServiceValidationTest {
         Dataset ds = wrap(dsg);
         Model model = ds.getDefaultModel();
         var vocabulary = model.read("test-vocabulary.ttl");
-        api = new MetadataService(txn, vocabulary, validator, permissions);
+        var systemVocabulary = model.read("system-vocabulary.ttl");
+        api = new MetadataService(txn, vocabulary, systemVocabulary, validator, permissions);
 
         setupRequestContext();
     }

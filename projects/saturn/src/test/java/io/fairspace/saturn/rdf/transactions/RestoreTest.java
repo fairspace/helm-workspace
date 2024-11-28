@@ -1,14 +1,15 @@
 package io.fairspace.saturn.rdf.transactions;
 
 import java.io.File;
-import java.io.IOException;
 
 import org.apache.jena.rdf.model.Statement;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import io.fairspace.saturn.config.Config;
+import io.fairspace.saturn.config.properties.JenaProperties;
+import io.fairspace.saturn.config.properties.StoreParamsProperties;
+import io.fairspace.saturn.config.properties.ViewsProperties;
 import io.fairspace.saturn.rdf.SaturnDatasetFactory;
 
 import static java.util.UUID.randomUUID;
@@ -27,19 +28,19 @@ public class RestoreTest {
             createProperty("http://example.com/property2"),
             createResource("http://example.com/object2"));
 
-    private Config.Jena config;
+    private JenaProperties config;
 
     @Before
     public void before() {
-        config = new Config.Jena();
-        config.datasetPath = new File(getTempDirectory(), randomUUID().toString());
-        config.transactionLogPath = new File(getTempDirectory(), randomUUID().toString());
+        config = new JenaProperties("http://localhost/iri/", new StoreParamsProperties());
+        config.setDatasetPath(new File(getTempDirectory(), randomUUID().toString()));
+        config.setTransactionLogPath(new File(getTempDirectory(), randomUUID().toString()));
     }
 
     @After
     public void after() {
-        config.transactionLogPath.delete();
-        config.datasetPath.delete();
+        config.getTransactionLogPath().delete();
+        config.getDatasetPath().delete();
     }
 
     @Test
@@ -50,8 +51,8 @@ public class RestoreTest {
             txn1.executeWrite(m -> m.add(stmt2));
         }
 
-        deleteDirectory(config.datasetPath);
-        assertFalse(config.datasetPath.exists());
+        deleteDirectory(config.getDatasetPath());
+        assertFalse(config.getDatasetPath().exists());
 
         try (var txn2 = newDataset()) {
             txn2.executeRead(m -> {
@@ -77,14 +78,15 @@ public class RestoreTest {
 
         txn1.close();
 
-        deleteDirectory(config.datasetPath);
+        deleteDirectory(config.getDatasetPath());
 
         try (var txn2 = newDataset()) {
             txn2.executeRead(m -> assertEquals(before, m.listStatements().toSet()));
         }
     }
 
-    private Transactions newDataset() throws IOException {
-        return new BulkTransactions(SaturnDatasetFactory.connect(config, null));
+    private Transactions newDataset() {
+        var viewProperties = new ViewsProperties();
+        return new BulkTransactions(SaturnDatasetFactory.connect(viewProperties, config, null, null));
     }
 }

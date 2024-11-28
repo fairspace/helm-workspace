@@ -1,7 +1,7 @@
 package io.fairspace.saturn.rdf;
 
 import org.apache.jena.graph.Node;
-import org.apache.jena.sparql.core.QuadAction;
+import org.apache.jena.query.text.changes.TextQuadAction;
 
 public class DelegatingDatasetChanges extends AbstractDatasetChanges {
     private GraphChangeListener changeListener;
@@ -17,7 +17,7 @@ public class DelegatingDatasetChanges extends AbstractDatasetChanges {
     }
 
     @Override
-    public void change(QuadAction action, Node graph, Node subject, Node predicate, Node object) {
+    public void change(TextQuadAction action, Node graph, Node subject, Node predicate, Node object) {
         if (changeListener != null) {
             changeListener.onChange(action, graph, subject, predicate, object);
         }

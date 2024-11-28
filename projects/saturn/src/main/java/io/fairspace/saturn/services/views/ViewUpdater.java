@@ -28,26 +28,30 @@ import org.apache.jena.vocabulary.RDF;
 import org.apache.jena.vocabulary.RDFS;
 import org.apache.jena.vocabulary.XSD;
 
-import io.fairspace.saturn.config.ViewsConfig;
+import io.fairspace.saturn.config.properties.ViewsProperties;
 import io.fairspace.saturn.rdf.SparqlUtils;
 import io.fairspace.saturn.vocabulary.FS;
 
-import static io.fairspace.saturn.config.ConfigLoader.CONFIG;
-import static io.fairspace.saturn.config.ConfigLoader.VIEWS_CONFIG;
 import static io.fairspace.saturn.services.views.Table.idColumn;
 import static io.fairspace.saturn.services.views.Table.valueColumn;
 import static io.fairspace.saturn.services.views.ViewStoreClientFactory.protectedResources;
 
 @Slf4j
 public class ViewUpdater implements AutoCloseable {
+
+    private final ViewsProperties viewsProperties;
     private final ViewStoreClient viewStoreClient;
     private final DatasetGraph dsg;
     private final Graph graph;
+    private final String publicUrl;
 
-    public ViewUpdater(ViewStoreClient viewStoreClient, DatasetGraph dsg) {
+    public ViewUpdater(
+            ViewsProperties viewsProperties, ViewStoreClient viewStoreClient, DatasetGraph dsg, String publicUrl) {
+        this.viewsProperties = viewsProperties;
         this.viewStoreClient = viewStoreClient;
         this.dsg = dsg;
         this.graph = dsg.getDefaultGraph();
+        this.publicUrl = publicUrl;
     }
 
     @Override
@@ -86,10 +90,10 @@ public class ViewUpdater implements AutoCloseable {
         if (labelNode == null) {
             return null;
         }
-        return labelNode.toString(false);
+        return labelNode.getLiteral().toString(false);
     }
 
-    public Object getValue(ViewsConfig.View.Column column, Node node) throws SQLException {
+    public Object getValue(ViewsProperties.View.Column column, Node node) throws SQLException {
         return switch (column.type) {
             case Boolean, Number -> node.getLiteralValue();
             case Date -> {
@@ -127,7 +131,7 @@ public class ViewUpdater implements AutoCloseable {
     private void addCollectionToProtectedResourceRow(String type, Node subject, Map<String, Object> row) {
         if (protectedResources.contains(type)) {
             // set collection name
-            var rootLocation = CONFIG.publicUrl + "/api/webdav" + "/";
+            var rootLocation = publicUrl + "/api/webdav" + "/";
             if (subject.getURI().startsWith(rootLocation)) {
                 var location = subject.getURI().substring(rootLocation.length());
                 var collection = URLDecoder.decode(location.split("/")[0], StandardCharsets.UTF_8);
@@ -148,7 +152,7 @@ public class ViewUpdater implements AutoCloseable {
         var start = new Date().getTime();
         var type = typeNode.get().getObject();
         log.debug("Subject {} of type {}", subject.getURI(), type.getLocalName());
-        VIEWS_CONFIG.views.stream()
+        viewsProperties.views.stream()
                 .filter(view -> view.types.contains(type.getURI()))
                 .forEach(view -> {
                     if (graph.find(subject, FS.dateDeleted.asNode(), Node.ANY).hasNext()) {
@@ -183,7 +187,7 @@ public class ViewUpdater implements AutoCloseable {
                             log.error("Failed to update view row", e);
                         }
                         // Update subject value sets
-                        for (ViewsConfig.View.Column column : view.columns) {
+                        for (ViewsProperties.View.Column column : view.columns) {
                             if (!column.type.isSet()) {
                                 continue;
                             }
@@ -194,7 +198,7 @@ public class ViewUpdater implements AutoCloseable {
                             try {
                                 var values = new HashSet<String>();
                                 for (var term : objects) {
-                                    if (column.type == ViewsConfig.ColumnType.TermSet) {
+                                    if (column.type == ViewsProperties.ColumnType.TermSet) {
                                         var label = getLabel(graph, term);
                                         viewStoreClient.addLabel(term.getURI(), column.rdfType, label);
                                         values.add(label);
@@ -240,7 +244,7 @@ public class ViewUpdater implements AutoCloseable {
     /**
      * Only use this method in a secure and synchonisized way, see 'MaintenanceService.recreateIndex()'
      */
-    public void recreateIndexForView(ViewStoreClient viewStoreClient, ViewsConfig.View view) throws SQLException {
+    public void recreateIndexForView(ViewStoreClient viewStoreClient, ViewsProperties.View view) throws SQLException {
         // Clear database tables for view
         log.info("Recreating index for view {} started", view.name);
         viewStoreClient.truncateViewTables(view.name);
@@ -261,7 +265,7 @@ public class ViewUpdater implements AutoCloseable {
     }
 
     private Map<String, Object> transformResult(
-            String type, List<ViewsConfig.View.Column> columns, QuerySolution result) throws SQLException {
+            String type, List<ViewsProperties.View.Column> columns, QuerySolution result) throws SQLException {
         var values = new HashMap<String, Object>();
         var subject = result.getResource("id");
         values.put("id", subject.getURI());
@@ -285,7 +289,7 @@ public class ViewUpdater implements AutoCloseable {
      * @param view The view for which to update the values.
      * @param type The subject type (for when the view includes multiple types)
      */
-    public void copyValuesForType(ViewsConfig.View view, String type) throws SQLException {
+    public void copyValuesForType(ViewsProperties.View view, String type) throws SQLException {
         var columns =
                 view.columns.stream().filter(column -> !column.type.isSet()).collect(Collectors.toList());
         var attributes = columns.stream()
@@ -340,13 +344,13 @@ public class ViewUpdater implements AutoCloseable {
      * @param type The subject type (for when the view includes multiple types)
      * @param column The view column of value set property.
      */
-    public void copyValueSetsForColumn(ViewsConfig.View view, String type, ViewsConfig.View.Column column)
+    public void copyValueSetsForColumn(ViewsProperties.View view, String type, ViewsProperties.View.Column column)
             throws SQLException {
         var property = column.name;
         var propertyTable =
                 viewStoreClient.getConfiguration().propertyTables.get(view.name).get(property);
         var idColumn = idColumn(view.name);
-        var propertyColumn = valueColumn(column.name, ViewsConfig.ColumnType.Identifier);
+        var propertyColumn = valueColumn(column.name, ViewsProperties.ColumnType.Identifier);
         var predicate = Arrays.stream(column.source.split("\\s+"))
                 .map("<%s>"::formatted)
                 .collect(Collectors.joining("/"));
@@ -400,7 +404,8 @@ public class ViewUpdater implements AutoCloseable {
      * @param type The subject type (for when the view includes multiple types)
      * @param join The join relation.
      */
-    public void copyLinks(ViewsConfig.View view, String type, ViewsConfig.View.JoinView join) throws SQLException {
+    public void copyLinks(ViewsProperties.View view, String type, ViewsProperties.View.JoinView join)
+            throws SQLException {
         var joinTable =
                 viewStoreClient.getConfiguration().joinTables.get(view.name).get(join.view);
         var idColumn = idColumn(view.name);

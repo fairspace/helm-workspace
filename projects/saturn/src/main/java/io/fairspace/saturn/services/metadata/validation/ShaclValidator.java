@@ -7,17 +7,18 @@ import org.apache.jena.shacl.Shapes;
 import org.apache.jena.shacl.vocabulary.SHACL;
 import org.apache.jena.sparql.path.P_Link;
 import org.apache.jena.sparql.path.Path;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.stereotype.Component;
 
 import static org.apache.jena.shacl.validation.ValidationProc.plainValidationNode;
 
+@Component
 public class ShaclValidator extends VocabularyAwareValidator {
     private final Shapes shapes;
 
-    public ShaclValidator(Model vocabulary) {
+    public ShaclValidator(@Qualifier("vocabulary") Model vocabulary) {
         super(vocabulary);
-
         shapes = Shapes.parse(vocabulary);
-        ;
     }
 
     @Override

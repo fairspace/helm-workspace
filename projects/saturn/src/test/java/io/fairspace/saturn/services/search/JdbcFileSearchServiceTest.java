@@ -2,6 +2,7 @@ package io.fairspace.saturn.services.search;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.List;
 
 import io.milton.http.ResourceFactory;
 import io.milton.http.exceptions.BadRequestException;
@@ -13,7 +14,6 @@ import org.apache.jena.query.Dataset;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.sparql.core.DatasetGraphFactory;
 import org.apache.jena.sparql.util.Context;
-import org.eclipse.jetty.server.Authentication;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -22,9 +22,10 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import io.fairspace.saturn.PostgresAwareTest;
-import io.fairspace.saturn.config.Config;
-import io.fairspace.saturn.config.ConfigLoader;
-import io.fairspace.saturn.config.ViewsConfig;
+import io.fairspace.saturn.config.properties.CacheProperties;
+import io.fairspace.saturn.config.properties.JenaProperties;
+import io.fairspace.saturn.config.properties.WebDavProperties;
+import io.fairspace.saturn.controller.dto.request.FileSearchRequest;
 import io.fairspace.saturn.rdf.dao.DAO;
 import io.fairspace.saturn.rdf.transactions.SimpleTransactions;
 import io.fairspace.saturn.rdf.transactions.Transactions;
@@ -36,7 +37,11 @@ import io.fairspace.saturn.services.metadata.validation.ComposedValidator;
 import io.fairspace.saturn.services.metadata.validation.UniqueLabelValidator;
 import io.fairspace.saturn.services.users.User;
 import io.fairspace.saturn.services.users.UserService;
-import io.fairspace.saturn.services.views.*;
+import io.fairspace.saturn.services.views.MaterializedViewService;
+import io.fairspace.saturn.services.views.ViewService;
+import io.fairspace.saturn.services.views.ViewStoreClient;
+import io.fairspace.saturn.services.views.ViewStoreClientFactory;
+import io.fairspace.saturn.services.views.ViewStoreReader;
 import io.fairspace.saturn.services.workspaces.Workspace;
 import io.fairspace.saturn.services.workspaces.WorkspaceRole;
 import io.fairspace.saturn.services.workspaces.WorkspaceService;
@@ -44,16 +49,23 @@ import io.fairspace.saturn.webdav.DavFactory;
 import io.fairspace.saturn.webdav.blobstore.BlobInfo;
 import io.fairspace.saturn.webdav.blobstore.BlobStore;
 
-import static io.fairspace.saturn.TestUtils.*;
+import static io.fairspace.saturn.TestUtils.ADMIN;
+import static io.fairspace.saturn.TestUtils.USER;
+import static io.fairspace.saturn.TestUtils.createTestUser;
+import static io.fairspace.saturn.TestUtils.loadViewsConfig;
+import static io.fairspace.saturn.TestUtils.mockAuthentication;
+import static io.fairspace.saturn.TestUtils.setupRequestContext;
 import static io.fairspace.saturn.auth.RequestContext.getCurrentRequest;
 
 import static org.apache.jena.query.DatasetFactory.wrap;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
 public class JdbcFileSearchServiceTest extends PostgresAwareTest {
     static final String BASE_PATH = "/api/webdav";
-    static final String baseUri = ConfigLoader.CONFIG.publicUrl + BASE_PATH;
+    static final String baseUri = "http://localhost:8080" + BASE_PATH;
 
     @Mock
     BlobStore store;
@@ -64,79 +76,103 @@ public class JdbcFileSearchServiceTest extends PostgresAwareTest {
     @Mock
     private MetadataPermissions permissions;
 
+    @Mock
+    private MaterializedViewService materializedViewService;
+
     WorkspaceService workspaceService;
     MetadataService api;
     FileSearchService fileSearchService;
     MaintenanceService maintenanceService;
 
+    private DAO dao;
+
     User user;
-    Authentication.User userAuthentication;
+    User user2;
     User workspaceManager;
-    Authentication.User workspaceManagerAuthentication;
     User admin;
-    Authentication.User adminAuthentication;
-    private org.eclipse.jetty.server.Request request;
 
     private void selectRegularUser() {
-        lenient().when(request.getAuthentication()).thenReturn(userAuthentication);
+        mockAuthentication(USER);
         lenient().when(userService.currentUser()).thenReturn(user);
     }
 
     private void selectAdmin() {
-        lenient().when(request.getAuthentication()).thenReturn(adminAuthentication);
+        mockAuthentication(ADMIN);
         lenient().when(userService.currentUser()).thenReturn(admin);
+    }
+
+    private void setupUsers() {
+        user = createTestUser("user", false);
+        user.setCanViewPublicMetadata(true);
+        dao.write(user);
+        user2 = createTestUser("user2", false);
+        dao.write(user2);
+        workspaceManager = createTestUser("workspace-admin", false);
+        dao.write(workspaceManager);
+        admin = createTestUser("admin", true);
+        dao.write(admin);
     }
 
     @Before
     public void before()
             throws SQLException, NotAuthorizedException, BadRequestException, ConflictException, IOException {
-        var viewDatabase = new Config.ViewDatabase();
-        viewDatabase.url = postgres.getJdbcUrl();
-        viewDatabase.username = postgres.getUsername();
-        viewDatabase.password = postgres.getPassword();
-        viewDatabase.maxPoolSize = 5;
-        ViewsConfig config = loadViewsConfig("src/test/resources/test-views.yaml");
-        var viewStoreClientFactory = new ViewStoreClientFactory(config, viewDatabase, new Config.Search());
-
-        var dsg = new TxnIndexDatasetGraph(DatasetGraphFactory.createTxnMem(), viewStoreClientFactory);
+        JenaProperties.setMetadataBaseIRI("http://localhost/iri/");
+        var viewsProperties = loadViewsConfig("src/test/resources/test-views.yaml");
+        var searchProperties = buildSearchProperties();
+        var viewDatabase = buildViewDatabaseConfig();
+        var configuration = new ViewStoreClient.ViewStoreConfiguration(viewsProperties);
+        var dataSource = getDataSource(viewDatabase);
+        var viewStoreClientFactory = new ViewStoreClientFactory(
+                viewsProperties, viewDatabase, materializedViewService, dataSource, configuration);
+        var dsg = new TxnIndexDatasetGraph(
+                viewsProperties, DatasetGraphFactory.createTxnMem(), viewStoreClientFactory, "http://localhost:8080");
         Dataset ds = wrap(dsg);
         Transactions tx = new SimpleTransactions(ds);
         Model model = ds.getDefaultModel();
         var vocabulary = model.read("test-vocabulary.ttl");
+        var userVocabulary = model.read("vocabulary.ttl");
+        var systemVocabulary = model.read("system-vocabulary.ttl");
+        var viewStoreReader =
+                new ViewStoreReader(searchProperties, viewsProperties, viewStoreClientFactory, configuration);
+        var viewService = new ViewService(
+                searchProperties,
+                new CacheProperties(),
+                viewsProperties,
+                ds,
+                viewStoreReader,
+                viewStoreClientFactory,
+                permissions);
 
-        var viewService = new ViewService(ConfigLoader.CONFIG, config, ds, viewStoreClientFactory, permissions);
-
-        maintenanceService = new MaintenanceService(userService, ds, viewStoreClientFactory, viewService);
+        maintenanceService = new MaintenanceService(
+                viewsProperties, userService, ds, viewStoreClientFactory, viewService, "http://localhost:8080");
 
         workspaceService = new WorkspaceService(tx, userService);
 
         var context = new Context();
-
-        var davFactory = new DavFactory(model.createResource(baseUri), store, userService, context);
-
-        fileSearchService = new JdbcFileSearchService(
-                ConfigLoader.CONFIG.search,
-                loadViewsConfig("src/test/resources/test-views.yaml"),
-                viewStoreClientFactory,
-                tx,
-                davFactory.root);
+        var davFactory = new DavFactory(
+                model.createResource(baseUri),
+                store,
+                userService,
+                context,
+                new WebDavProperties(),
+                userVocabulary,
+                vocabulary);
+        fileSearchService = new JdbcFileSearchService(tx, davFactory.root, viewStoreReader);
 
         when(permissions.canWriteMetadata(any())).thenReturn(true);
+        api = new MetadataService(
+                tx,
+                vocabulary,
+                systemVocabulary,
+                new ComposedValidator(List.of(new UniqueLabelValidator())),
+                permissions);
 
-        api = new MetadataService(tx, vocabulary, new ComposedValidator(new UniqueLabelValidator()), permissions);
+        dao = new DAO(model);
 
-        userAuthentication = mockAuthentication("user");
-        user = createTestUser("user", false);
-        new DAO(model).write(user);
-        workspaceManager = createTestUser("workspace-admin", false);
-        new DAO(model).write(workspaceManager);
-        workspaceManagerAuthentication = mockAuthentication("workspace-admin");
-        adminAuthentication = mockAuthentication("admin");
-        admin = createTestUser("admin", true);
-        new DAO(model).write(admin);
+        setupUsers();
 
         setupRequestContext();
-        request = getCurrentRequest();
+        var request = getCurrentRequest();
 
         selectAdmin();
 
@@ -176,8 +212,8 @@ public class JdbcFileSearchServiceTest extends PostgresAwareTest {
         var results = fileSearchService.searchFiles(request);
         Assert.assertEquals(2, results.size());
         // Expect the results to be sorted by id
-        Assert.assertEquals("sample-s2-b-rna.fastq", results.get(0).getLabel());
-        Assert.assertEquals("sample-s2-b-rna_copy.fastq", results.get(1).getLabel());
+        Assert.assertEquals("sample-s2-b-rna.fastq", results.get(0).label());
+        Assert.assertEquals("sample-s2-b-rna_copy.fastq", results.get(1).label());
     }
 
     @Test
@@ -191,7 +227,7 @@ public class JdbcFileSearchServiceTest extends PostgresAwareTest {
         selectAdmin();
         results = fileSearchService.searchFiles(request);
         Assert.assertEquals(1, results.size());
-        Assert.assertEquals("coffee.jpg", results.get(0).getLabel());
+        Assert.assertEquals("coffee.jpg", results.getFirst().label());
     }
 
     @Test
@@ -206,7 +242,7 @@ public class JdbcFileSearchServiceTest extends PostgresAwareTest {
         selectAdmin();
         results = fileSearchService.searchFiles(request);
         Assert.assertEquals(1, results.size());
-        Assert.assertEquals("coffee.jpg", results.get(0).getLabel());
+        Assert.assertEquals("coffee.jpg", results.getFirst().label());
     }
 
     @Test
@@ -216,11 +252,11 @@ public class JdbcFileSearchServiceTest extends PostgresAwareTest {
         // There is one file named coffee.jpg in coll1.
         request.setQuery("coffee");
 
-        request.setParentIRI(ConfigLoader.CONFIG.publicUrl + "/api/webdav/coll1");
+        request.setParentIRI("http://localhost:8080/api/webdav/coll1");
         var results = fileSearchService.searchFiles(request);
         Assert.assertEquals(1, results.size());
 
-        request.setParentIRI(ConfigLoader.CONFIG.publicUrl + "/api/webdav/coll2");
+        request.setParentIRI("http://localhost:8080/api/webdav/coll2");
         results = fileSearchService.searchFiles(request);
         Assert.assertEquals(0, results.size());
     }

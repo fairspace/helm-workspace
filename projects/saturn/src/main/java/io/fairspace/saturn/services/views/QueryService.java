@@ -1,5 +1,10 @@
 package io.fairspace.saturn.services.views;
 
+import io.fairspace.saturn.controller.dto.CountDto;
+import io.fairspace.saturn.controller.dto.ViewPageDto;
+import io.fairspace.saturn.controller.dto.request.CountRequest;
+import io.fairspace.saturn.controller.dto.request.ViewRequest;
+
 /**
  * High-level interface for fetching metadata view pages and counts.
  * Implemented using Sparql queries on the RDF database directly
@@ -14,7 +19,7 @@ package io.fairspace.saturn.services.views;
  * collections the user has access to.
  */
 public interface QueryService {
-    ViewPageDTO retrieveViewPage(ViewRequest request);
+    ViewPageDto retrieveViewPage(ViewRequest request);
 
-    CountDTO count(CountRequest request);
+    CountDto count(CountRequest request);
 }

@@ -9,25 +9,27 @@ import java.util.Set;
 
 import com.google.common.collect.Sets;
 
+import io.fairspace.saturn.controller.dto.ValueDto;
+
 public class ViewRow {
 
-    private final Map<String, Set<ValueDTO>> data;
+    private final Map<String, Set<ValueDto>> data;
 
     public ViewRow() {
         this.data = new HashMap<>();
     }
 
-    public ViewRow(Map<String, Set<ValueDTO>> data) {
+    public ViewRow(Map<String, Set<ValueDto>> data) {
         this.data = data;
     }
 
     public static ViewRow viewSetOf(ResultSet resultSet, List<String> columnsNames, String viewName)
             throws SQLException {
-        var data = new HashMap<String, Set<ValueDTO>>();
+        var data = new HashMap<String, Set<ValueDto>>();
         for (String columnName : columnsNames) {
             String label = resultSet.getString(columnName);
             var key = viewName + "_" + columnName;
-            var value = Sets.newHashSet(new ValueDTO(label, label));
+            var value = Sets.newHashSet(new ValueDto(label, label));
             data.put(key, value);
         }
         return new ViewRow(data);
@@ -35,11 +37,11 @@ public class ViewRow {
 
     // TODO, make obsolete by ViewStoreReader refactor
     // TODO: return unmodifiable map
-    public Map<String, Set<ValueDTO>> getRawData() {
+    public Map<String, Set<ValueDto>> getRawData() {
         return data;
     }
 
-    public void put(String key, Set<ValueDTO> value) {
+    public void put(String key, Set<ValueDto> value) {
         data.put(key, value);
     }
 
@@ -48,7 +50,7 @@ public class ViewRow {
         return this;
     }
 
-    private static Set<ValueDTO> addElementsAndReturn(Set<ValueDTO> set, Set<ValueDTO> elements) {
+    private static Set<ValueDto> addElementsAndReturn(Set<ValueDto> set, Set<ValueDto> elements) {
         set.addAll(elements);
         return set;
     }

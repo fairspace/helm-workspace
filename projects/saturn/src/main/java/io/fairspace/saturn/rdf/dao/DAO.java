@@ -109,7 +109,7 @@ public class DAO {
                 entity.setIri(generateMetadataIri());
             }
 
-            graph.add(new Triple(entity.getIri(), RDF.type.asNode(), type));
+            graph.add(Triple.create(entity.getIri(), RDF.type.asNode(), type));
 
             processFields(entity.getClass(), (field, annotation) -> {
                 var propertyNode = createURI(annotation.value());
@@ -123,9 +123,10 @@ public class DAO {
 
                 if (value instanceof Iterable) {
                     ((Iterable<?>) value)
-                            .forEach(item -> graph.add(new Triple(entity.getIri(), propertyNode, valueToNode(item))));
+                            .forEach(
+                                    item -> graph.add(Triple.create(entity.getIri(), propertyNode, valueToNode(item))));
                 } else if (value != null) {
-                    graph.add(new Triple(entity.getIri(), propertyNode, valueToNode(value)));
+                    graph.add(Triple.create(entity.getIri(), propertyNode, valueToNode(value)));
                 }
             });
 

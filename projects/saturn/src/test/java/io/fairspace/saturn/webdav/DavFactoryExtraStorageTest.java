@@ -2,6 +2,7 @@ package io.fairspace.saturn.webdav;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Map;
 import javax.xml.namespace.QName;
 
@@ -9,20 +10,26 @@ import io.milton.http.ResourceFactory;
 import io.milton.http.exceptions.BadRequestException;
 import io.milton.http.exceptions.ConflictException;
 import io.milton.http.exceptions.NotAuthorizedException;
-import io.milton.resource.*;
+import io.milton.resource.DeletableResource;
+import io.milton.resource.FolderResource;
+import io.milton.resource.GetableResource;
+import io.milton.resource.MakeCollectionableResource;
+import io.milton.resource.MultiNamespaceCustomPropertyResource;
+import io.milton.resource.PostableResource;
+import io.milton.resource.PutableResource;
+import io.milton.resource.ReplaceableResource;
+import jakarta.servlet.http.HttpServletRequest;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.sparql.util.Context;
-import org.eclipse.jetty.server.Authentication;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import io.fairspace.saturn.config.properties.WebDavProperties;
 import io.fairspace.saturn.rdf.dao.DAO;
-import io.fairspace.saturn.rdf.transactions.SimpleTransactions;
-import io.fairspace.saturn.rdf.transactions.Transactions;
 import io.fairspace.saturn.services.users.User;
 import io.fairspace.saturn.services.users.UserService;
 import io.fairspace.saturn.vocabulary.FS;
@@ -33,13 +40,27 @@ import io.fairspace.saturn.webdav.resources.DirectoryResource;
 import io.fairspace.saturn.webdav.resources.ExtraStorageRootResource;
 import io.fairspace.saturn.webdav.resources.FileResource;
 
-import static io.fairspace.saturn.TestUtils.*;
+import static io.fairspace.saturn.TestUtils.ADMIN;
+import static io.fairspace.saturn.TestUtils.USER;
+import static io.fairspace.saturn.TestUtils.createTestUser;
+import static io.fairspace.saturn.TestUtils.mockAuthentication;
+import static io.fairspace.saturn.TestUtils.setupRequestContext;
 import static io.fairspace.saturn.auth.RequestContext.getCurrentRequest;
 
 import static java.lang.String.format;
 import static org.apache.jena.query.DatasetFactory.createTxnMem;
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
 public class DavFactoryExtraStorageTest {
@@ -59,37 +80,47 @@ public class DavFactoryExtraStorageTest {
 
     Context context = new Context();
     User user;
-    Authentication.User userAuthentication;
     User admin;
-    Authentication.User adminAuthentication;
-    private org.eclipse.jetty.server.Request request;
+    private HttpServletRequest request;
 
     private ResourceFactory factory;
-    private Dataset ds = createTxnMem();
-    private Transactions tx = new SimpleTransactions(ds);
-    private Model model = ds.getDefaultModel();
+    private final Dataset ds = createTxnMem();
+    private final Model model = ds.getDefaultModel();
 
     private final String defaultExtraStorageRootName = "analysis-export";
 
     private void selectRegularUser() {
-        lenient().when(request.getAuthentication()).thenReturn(userAuthentication);
+        mockAuthentication(USER);
         lenient().when(userService.currentUser()).thenReturn(user);
     }
 
     private void selectAdmin() {
-        lenient().when(request.getAuthentication()).thenReturn(adminAuthentication);
+        mockAuthentication(ADMIN);
         lenient().when(userService.currentUser()).thenReturn(admin);
     }
 
     @Before
     public void before() {
-        factory = new DavFactory(model.createResource(extraStorageUri), store, userService, context);
+        WebDavProperties webDavProperties = new WebDavProperties();
+        webDavProperties.setBlobStorePath("db");
+        var extraStorage = new WebDavProperties.ExtraStorage();
+        extraStorage.setBlobStorePath("db/extra");
+        extraStorage.setDefaultRootCollections(List.of(defaultExtraStorageRootName));
+        webDavProperties.setExtraStorage(extraStorage);
+        var vocabulary = model.read("test-vocabulary.ttl");
+        var userVocabulary = model.read("vocabulary.ttl");
+        factory = new DavFactory(
+                model.createResource(extraStorageUri),
+                store,
+                userService,
+                context,
+                webDavProperties,
+                userVocabulary,
+                vocabulary);
 
-        userAuthentication = mockAuthentication("user");
         user = createTestUser("user", false);
         new DAO(model).write(user);
 
-        adminAuthentication = mockAuthentication("admin");
         admin = createTestUser("admin", true);
         new DAO(model).write(admin);
 
@@ -213,9 +244,9 @@ public class DavFactoryExtraStorageTest {
             throws NotAuthorizedException, BadRequestException, ConflictException, IOException {
         var root = (MakeCollectionableResource) factory.getResource(null, EXTRA_STORAGE_PATH);
         var coll = (FolderResource) root.createCollection(defaultExtraStorageRootName);
-        var file1 = coll.createNew("file1", input, FILE_SIZE, "text/abc");
-        var file2 = coll.createNew("file2", input, FILE_SIZE, "text/abc");
-        var file3 = coll.createNew("file3", input, FILE_SIZE, "text/abc");
+        coll.createNew("file1", input, FILE_SIZE, "text/abc");
+        coll.createNew("file2", input, FILE_SIZE, "text/abc");
+        coll.createNew("file3", input, FILE_SIZE, "text/abc");
 
         ((PostableResource) root.child(defaultExtraStorageRootName))
                 .processForm(Map.of("action", "delete_all_in_directory"), Map.of());
@@ -232,7 +263,7 @@ public class DavFactoryExtraStorageTest {
     public void testThrowsErrorWhenNonDefaultRootDirectoryName()
             throws NotAuthorizedException, BadRequestException, ConflictException {
         var root = (MakeCollectionableResource) factory.getResource(null, EXTRA_STORAGE_PATH);
-        var coll = (FolderResource) root.createCollection("coll1");
+        root.createCollection("coll1");
     }
 
     @Test()

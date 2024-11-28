@@ -12,8 +12,12 @@ import org.apache.jena.query.Dataset;
 import org.apache.jena.sparql.core.DatasetGraph;
 import org.apache.jena.tdb2.DatabaseMgr;
 import org.apache.jena.tdb2.store.DatasetGraphSwitchable;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.lang.Nullable;
+import org.springframework.stereotype.Service;
 
-import io.fairspace.saturn.config.ConfigLoader;
+import io.fairspace.saturn.config.properties.ViewsProperties;
 import io.fairspace.saturn.rdf.transactions.TxnIndexDatasetGraph;
 import io.fairspace.saturn.rdf.transactions.TxnLogDatasetGraph;
 import io.fairspace.saturn.services.AccessDeniedException;
@@ -25,27 +29,35 @@ import io.fairspace.saturn.services.views.ViewStoreClientFactory;
 import io.fairspace.saturn.services.views.ViewUpdater;
 
 @Log4j2
+@Service
 public class MaintenanceService {
+
     public static final String SERVICE_NOT_AVAILABLE = "Service not available";
     public static final String MAINTENANCE_IS_IN_PROGRESS = "Maintenance is in progress.";
 
     private final ThreadPoolExecutor threadpool =
             new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
 
+    private final ViewsProperties viewsProperties;
     private final UserService userService;
     private final Dataset dataset;
     private final ViewStoreClientFactory viewStoreClientFactory;
     private final ViewService viewService;
+    private final String publicUrl;
 
     public MaintenanceService(
+            ViewsProperties viewsProperties,
             @NonNull UserService userService,
-            @NonNull Dataset dataset,
-            ViewStoreClientFactory viewStoreClientFactory,
-            ViewService viewService) {
+            @Qualifier("dataset") @NonNull Dataset dataset,
+            @Nullable ViewStoreClientFactory viewStoreClientFactory,
+            ViewService viewService,
+            @Value("${application.publicUrl}") String publicUrl) {
+        this.viewsProperties = viewsProperties;
         this.userService = userService;
         this.dataset = dataset;
         this.viewStoreClientFactory = viewStoreClientFactory;
         this.viewService = viewService;
+        this.publicUrl = publicUrl;
     }
 
     public boolean disabled() {
@@ -107,10 +119,11 @@ public class MaintenanceService {
      */
     public void recreateIndex() {
         try (var viewStoreClient = viewStoreClientFactory.build();
-                var viewUpdater = new ViewUpdater(viewStoreClient, dataset.asDatasetGraph())) {
+                var viewUpdater =
+                        new ViewUpdater(viewsProperties, viewStoreClient, dataset.asDatasetGraph(), publicUrl)) {
             var start = new Date().getTime();
             // Index entities
-            for (var view : ConfigLoader.VIEWS_CONFIG.views) {
+            for (var view : viewsProperties.views) {
                 viewUpdater.recreateIndexForView(viewStoreClient, view);
             }
             viewUpdater.commit();
@@ -128,17 +141,12 @@ public class MaintenanceService {
      * @return the underlying dataset graph that supports compacting
      */
     public static DatasetGraph unwrap(DatasetGraph dsg) {
-        if (dsg == null || dsg instanceof DatasetGraphSwitchable) {
-            return dsg;
-        }
-        if (dsg instanceof TxnLogDatasetGraph) {
-            return unwrap(((TxnLogDatasetGraph) dsg).getDatasetGraph());
-        }
-
-        if (dsg instanceof TxnIndexDatasetGraph) {
-            return unwrap(((TxnIndexDatasetGraph) dsg).getDatasetGraph());
-        }
-
-        return null;
+        return switch (dsg) {
+            case null -> dsg;
+            case DatasetGraphSwitchable ignored -> dsg;
+            case TxnLogDatasetGraph txnLogDatasetGraph -> unwrap(txnLogDatasetGraph.getDatasetGraph());
+            case TxnIndexDatasetGraph txnIndexDatasetGraph -> unwrap(txnIndexDatasetGraph.getDatasetGraph());
+            default -> null;
+        };
     }
 }

@@ -8,6 +8,8 @@ import org.apache.jena.query.Query;
 import org.apache.jena.query.QueryFactory;
 import org.apache.jena.query.QuerySolutionMap;
 
+import io.fairspace.saturn.controller.dto.SearchResultDto;
+import io.fairspace.saturn.controller.dto.request.FileSearchRequest;
 import io.fairspace.saturn.rdf.SparqlUtils;
 import io.fairspace.saturn.vocabulary.FS;
 
@@ -23,7 +25,7 @@ public class SparqlFileSearchService implements FileSearchService {
         this.ds = ds;
     }
 
-    public List<SearchResultDTO> searchFiles(FileSearchRequest request) {
+    public List<SearchResultDto> searchFiles(FileSearchRequest request) {
         var query = getSearchForFilesQuery(request.getParentIRI());
         var binding = new QuerySolutionMap();
         binding.add("regexQuery", createStringLiteral(SparqlUtils.getQueryRegex(request.getQuery())));

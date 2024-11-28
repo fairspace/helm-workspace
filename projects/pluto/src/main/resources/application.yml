@@ -9,7 +9,7 @@ server:
   error:
     whitelabel:
       enabled: false
-  max-http-header-size: 65535
+  max-http-request-header-size: 65535
 
 spring:
   application:

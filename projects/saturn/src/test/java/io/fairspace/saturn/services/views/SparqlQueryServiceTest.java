@@ -1,44 +1,71 @@
 package io.fairspace.saturn.services.views;
 
-import java.io.*;
-import java.util.*;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 import io.milton.http.ResourceFactory;
-import io.milton.http.exceptions.*;
-import io.milton.resource.*;
-import org.apache.jena.query.*;
-import org.apache.jena.rdf.model.*;
-import org.apache.jena.sparql.core.*;
-import org.apache.jena.sparql.util.*;
-import org.eclipse.jetty.server.*;
-import org.junit.*;
-import org.junit.runner.*;
-import org.mockito.*;
-import org.mockito.junit.*;
+import io.milton.http.exceptions.BadRequestException;
+import io.milton.http.exceptions.ConflictException;
+import io.milton.http.exceptions.NotAuthorizedException;
+import io.milton.resource.MakeCollectionableResource;
+import io.milton.resource.PutableResource;
+import jakarta.servlet.http.HttpServletRequest;
+import org.apache.jena.query.Dataset;
+import org.apache.jena.rdf.model.Model;
+import org.apache.jena.sparql.core.DatasetGraphFactory;
+import org.apache.jena.sparql.core.DatasetImpl;
+import org.apache.jena.sparql.util.Context;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.junit.MockitoJUnitRunner;
 
-import io.fairspace.saturn.config.*;
-import io.fairspace.saturn.rdf.dao.*;
+import io.fairspace.saturn.config.properties.JenaProperties;
+import io.fairspace.saturn.config.properties.SearchProperties;
+import io.fairspace.saturn.config.properties.StoreParamsProperties;
+import io.fairspace.saturn.config.properties.WebDavProperties;
+import io.fairspace.saturn.controller.dto.request.CountRequest;
+import io.fairspace.saturn.controller.dto.request.ViewRequest;
+import io.fairspace.saturn.rdf.dao.DAO;
 import io.fairspace.saturn.rdf.search.FilteredDatasetGraph;
-import io.fairspace.saturn.rdf.transactions.*;
-import io.fairspace.saturn.services.metadata.*;
-import io.fairspace.saturn.services.metadata.validation.*;
-import io.fairspace.saturn.services.users.*;
-import io.fairspace.saturn.services.workspaces.*;
-import io.fairspace.saturn.webdav.*;
+import io.fairspace.saturn.rdf.transactions.SimpleTransactions;
+import io.fairspace.saturn.rdf.transactions.Transactions;
+import io.fairspace.saturn.services.metadata.MetadataPermissions;
+import io.fairspace.saturn.services.metadata.MetadataService;
+import io.fairspace.saturn.services.metadata.validation.ComposedValidator;
+import io.fairspace.saturn.services.metadata.validation.UniqueLabelValidator;
+import io.fairspace.saturn.services.users.User;
+import io.fairspace.saturn.services.users.UserService;
+import io.fairspace.saturn.services.workspaces.Workspace;
+import io.fairspace.saturn.services.workspaces.WorkspaceRole;
+import io.fairspace.saturn.services.workspaces.WorkspaceService;
+import io.fairspace.saturn.webdav.DavFactory;
 import io.fairspace.saturn.webdav.blobstore.BlobInfo;
 import io.fairspace.saturn.webdav.blobstore.BlobStore;
 
-import static io.fairspace.saturn.TestUtils.*;
-import static io.fairspace.saturn.auth.RequestContext.*;
+import static io.fairspace.saturn.TestUtils.ADMIN;
+import static io.fairspace.saturn.TestUtils.USER;
+import static io.fairspace.saturn.TestUtils.createTestUser;
+import static io.fairspace.saturn.TestUtils.loadViewsConfig;
+import static io.fairspace.saturn.TestUtils.mockAuthentication;
+import static io.fairspace.saturn.TestUtils.setupRequestContext;
+import static io.fairspace.saturn.auth.RequestContext.getCurrentRequest;
 
-import static org.apache.jena.query.DatasetFactory.*;
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
+import static org.apache.jena.query.DatasetFactory.wrap;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
 public class SparqlQueryServiceTest {
     static final String BASE_PATH = "/api/webdav";
-    static final String baseUri = ConfigLoader.CONFIG.publicUrl + BASE_PATH;
+    static final String baseUri = "http://localhost:8080" + BASE_PATH;
     static final String SAMPLE_NATURE_BLOOD = "http://ncicb.nci.nih.gov/xml/owl/EVS/Thesaurus.owl#C12434";
     static final String ANALYSIS_TYPE_RNA_SEQ = "https://institut-curie.org/osiris#O6-12";
     static final String ANALYSIS_TYPE_IMAGING = "https://institut-curie.org/osiris#C37-2";
@@ -56,79 +83,98 @@ public class SparqlQueryServiceTest {
     MetadataService api;
     QueryService queryService;
 
+    private DAO dao;
+
     User user;
-    Authentication.User userAuthentication;
     User user2;
-    Authentication.User user2Authentication;
     User workspaceManager;
-    Authentication.User workspaceManagerAuthentication;
     User admin;
-    Authentication.User adminAuthentication;
-    private org.eclipse.jetty.server.Request request;
 
-    private void selectRegularUser() {
-        lenient().when(request.getAuthentication()).thenReturn(userAuthentication);
-        lenient().when(userService.currentUser()).thenReturn(user);
-    }
-
+    // TODO: move the selectUser methods to a parent with mocked UserService
     private void selectExternalUser() {
-        lenient().when(request.getAuthentication()).thenReturn(user2Authentication);
+        mockAuthentication("user2");
         lenient().when(userService.currentUser()).thenReturn(user2);
     }
 
     private void selectAdmin() {
-        lenient().when(request.getAuthentication()).thenReturn(adminAuthentication);
+        mockAuthentication(ADMIN);
         lenient().when(userService.currentUser()).thenReturn(admin);
     }
 
-    private void setupUsers(Model model) {
-        userAuthentication = mockAuthentication("user");
-        user = createTestUser("user", false);
+    private void selectRegularUser() {
+        mockAuthentication(USER);
+        lenient().when(userService.currentUser()).thenReturn(user);
+    }
+
+    private void setupUsers() {
+        user = createTestUser(USER, false);
         user.setCanViewPublicMetadata(true);
-        new DAO(model).write(user);
-        user2Authentication = mockAuthentication("user2");
+        dao.write(user);
         user2 = createTestUser("user2", false);
-        new DAO(model).write(user2);
+        dao.write(user2);
         workspaceManager = createTestUser("workspace-admin", false);
-        new DAO(model).write(workspaceManager);
-        workspaceManagerAuthentication = mockAuthentication("workspace-admin");
-        adminAuthentication = mockAuthentication("admin");
-        admin = createTestUser("admin", true);
-        new DAO(model).write(admin);
+        dao.write(workspaceManager);
+        admin = createTestUser(ADMIN, true);
+        dao.write(admin);
     }
 
     @Before
     public void before() throws NotAuthorizedException, BadRequestException, ConflictException, IOException {
+        JenaProperties.setMetadataBaseIRI("http://localhost/iri/");
         var dsg = DatasetGraphFactory.createTxnMem();
         Dataset ds = wrap(dsg);
         Transactions tx = new SimpleTransactions(ds);
         Model model = ds.getDefaultModel();
         var vocabulary = model.read("test-vocabulary.ttl");
+        var userVocabulary = model.read("vocabulary.ttl");
+        var systemVocabulary = model.read("system-vocabulary.ttl");
 
         workspaceService = new WorkspaceService(tx, userService);
 
         var context = new Context();
-        var davFactory = new DavFactory(model.createResource(baseUri), store, userService, context);
+        var davFactory = new DavFactory(
+                model.createResource(baseUri),
+                store,
+                userService,
+                context,
+                new WebDavProperties(),
+                userVocabulary,
+                vocabulary);
         var metadataPermissions = new MetadataPermissions(workspaceService, davFactory, userService);
         var filteredDatasetGraph = new FilteredDatasetGraph(ds.asDatasetGraph(), metadataPermissions);
         var filteredDataset = DatasetImpl.wrap(filteredDatasetGraph);
 
+        SearchProperties searchProperties = new SearchProperties();
+        searchProperties.setCountRequestTimeout(60000);
+        searchProperties.setPageRequestTimeout(10000);
+        searchProperties.setMaxJoinItems(50);
         queryService = new SparqlQueryService(
-                ConfigLoader.CONFIG.search, loadViewsConfig("src/test/resources/test-views.yaml"), filteredDataset);
+                searchProperties,
+                new JenaProperties("http://localhost/iri/", new StoreParamsProperties()),
+                loadViewsConfig("src/test/resources/test-views.yaml"),
+                filteredDataset,
+                tx);
 
         when(permissions.canWriteMetadata(any())).thenReturn(true);
-        api = new MetadataService(tx, vocabulary, new ComposedValidator(new UniqueLabelValidator()), permissions);
+        api = new MetadataService(
+                tx,
+                vocabulary,
+                systemVocabulary,
+                new ComposedValidator(List.of(new UniqueLabelValidator())),
+                permissions);
 
-        setupUsers(model);
+        dao = new DAO(model);
+
+        setupUsers();
 
         setupRequestContext();
-        request = getCurrentRequest();
+        HttpServletRequest request = getCurrentRequest();
 
         selectAdmin();
 
         var taxonomies = model.read("test-taxonomies.ttl");
         api.put(taxonomies, Boolean.FALSE);
-
+        when(userService.currentUser()).thenReturn(admin);
         var workspace = workspaceService.createWorkspace(
                 Workspace.builder().code("Test").build());
         workspaceService.setUserRole(workspace.getIri(), workspaceManager.getIri(), WorkspaceRole.Manager);
@@ -161,24 +207,19 @@ public class SparqlQueryServiceTest {
         assertEquals(2, page.getRows().size());
         // The implementation does not sort results. Probably deterministic,
         // but no certain order is guaranteed.
-        var row = page.getRows()
-                        .get(0)
-                        .get("Sample")
-                        .iterator()
-                        .next()
-                        .getValue()
-                        .equals("http://example.com/samples#s1-a")
-                ? page.getRows().get(0)
-                : page.getRows().get(1);
+        var row =
+                page.getRows().get(0).get("Sample").iterator().next().value().equals("http://example.com/samples#s1-a")
+                        ? page.getRows().get(0)
+                        : page.getRows().get(1);
         assertEquals(
-                "Sample A for subject 1", row.get("Sample").iterator().next().getLabel());
+                "Sample A for subject 1", row.get("Sample").iterator().next().label());
         assertEquals(
-                SAMPLE_NATURE_BLOOD, row.get("Sample_nature").iterator().next().getValue());
-        assertEquals("Blood", row.get("Sample_nature").iterator().next().getLabel());
-        assertEquals("Liver", row.get("Sample_topography").iterator().next().getLabel());
+                SAMPLE_NATURE_BLOOD, row.get("Sample_nature").iterator().next().value());
+        assertEquals("Blood", row.get("Sample_nature").iterator().next().label());
+        assertEquals("Liver", row.get("Sample_topography").iterator().next().label());
         assertEquals(
                 45.2f,
-                ((Number) row.get("Sample_tumorCellularity").iterator().next().getValue()).floatValue(),
+                ((Number) row.get("Sample_tumorCellularity").iterator().next().value()).floatValue(),
                 0.01);
     }
 
@@ -188,7 +229,7 @@ public class SparqlQueryServiceTest {
         var requestParams = new CountRequest();
         requestParams.setView("Sample");
         var result = queryService.count(requestParams);
-        assertEquals(2, result.getCount());
+        assertEquals(2, result.count());
     }
 
     @Test
@@ -196,15 +237,17 @@ public class SparqlQueryServiceTest {
         var request = new CountRequest();
         request.setView("Subject");
         var result = queryService.count(request);
-        Assert.assertEquals(1, result.getCount());
+        Assert.assertEquals(1, result.count());
     }
 
     @Test
-    public void testCountResourceWithMaxDisplayCountLimitMoreThanTotalCount() {
+    public void testCountResourceWithAccess() {
+        selectRegularUser();
         var request = new CountRequest();
         request.setView("Resource");
+
         var result = queryService.count(request);
-        Assert.assertEquals(3, result.getCount());
+        Assert.assertEquals(3, result.count());
     }
 
     @Test
@@ -213,7 +256,7 @@ public class SparqlQueryServiceTest {
         var countRequest = new CountRequest();
         countRequest.setView("Sample");
         var result = queryService.count(countRequest);
-        assertEquals(0, result.getCount());
+        assertEquals(0, result.count());
     }
 
     @Test

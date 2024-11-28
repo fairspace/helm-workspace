@@ -16,6 +16,7 @@ import io.milton.http.exceptions.NotAuthorizedException;
 import io.milton.http.exceptions.NotFoundException;
 import io.milton.resource.ReplaceableResource;
 import lombok.SneakyThrows;
+import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.vocabulary.RDF;
 
@@ -40,8 +41,8 @@ public class FileResource extends BaseResource implements io.milton.resource.Fil
     private boolean singleVersion;
 
     @SneakyThrows
-    public FileResource(DavFactory factory, Resource subject, Access access) {
-        super(factory, subject, access);
+    public FileResource(DavFactory factory, Resource subject, Access access, Model userVocabulary) {
+        super(factory, subject, access, userVocabulary);
 
         loadVersion();
     }

@@ -2,14 +2,14 @@ package io.fairspace.saturn.webdav;
 
 import java.io.IOException;
 import java.util.Vector;
-import javax.servlet.ServletInputStream;
-import javax.servlet.ServletOutputStream;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 
 import com.pivovarit.function.ThrowingConsumer;
 import io.milton.http.ResourceFactory;
 import io.milton.resource.FolderResource;
+import jakarta.servlet.ServletInputStream;
+import jakarta.servlet.ServletOutputStream;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -23,7 +23,11 @@ import io.fairspace.saturn.webdav.blobstore.BlobStore;
 import static io.fairspace.saturn.TestUtils.setupRequestContext;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
 public class WebDAVServletTest {
@@ -126,6 +130,7 @@ public class WebDAVServletTest {
         var order = inOrder(txn, resource);
 
         order.verify(txn).executeRead(any());
+
         // Called after the transaction is finished
         order.verify(resource).sendContent(eq(out), any(), any(), any());
     }

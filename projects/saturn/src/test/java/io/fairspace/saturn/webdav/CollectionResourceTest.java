@@ -12,6 +12,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import io.fairspace.saturn.config.properties.WebDavProperties;
 import io.fairspace.saturn.services.metadata.MetadataService;
 import io.fairspace.saturn.services.users.UserService;
 import io.fairspace.saturn.vocabulary.FS;
@@ -19,7 +20,7 @@ import io.fairspace.saturn.webdav.blobstore.BlobStore;
 import io.fairspace.saturn.webdav.resources.CollectionResource;
 
 import static io.fairspace.saturn.TestUtils.setupRequestContext;
-import static io.fairspace.saturn.config.Services.METADATA_SERVICE;
+import static io.fairspace.saturn.config.MetadataConfig.METADATA_SERVICE;
 
 import static org.apache.jena.query.DatasetFactory.createTxnMem;
 import static org.junit.Assert.assertFalse;
@@ -30,16 +31,16 @@ public class CollectionResourceTest {
     public static final String BASE_PATH = "/api/webdav";
     private static final String baseUri = "http://example.com" + BASE_PATH;
 
-    private Model model = createTxnMem().getDefaultModel();
+    private final Model model = createTxnMem().getDefaultModel();
     private CollectionResource resource;
 
-    private Resource WORKSPACE_1 = model.createResource("http://localhost/iri/W1");
-    private Resource WORKSPACE_2 = model.createResource("http://localhost/iri/W2");
-    private Resource COLLECTION_1 = model.createResource("http://localhost/iri/C1");
-    private Resource USER_1 = model.createResource("http://localhost/iri/userid1");
-    private Resource USER_2 = model.createResource("http://localhost/iri/userid2");
-    private Resource USER_3 = model.createResource("http://localhost/iri/userid3");
-    private Resource USER_4 = model.createResource("http://localhost/iri/userid4");
+    private final Resource WORKSPACE_1 = model.createResource("http://localhost/iri/W1");
+    private final Resource WORKSPACE_2 = model.createResource("http://localhost/iri/W2");
+    private final Resource COLLECTION_1 = model.createResource("http://localhost/iri/C1");
+    private final Resource USER_1 = model.createResource("http://localhost/iri/userid1");
+    private final Resource USER_2 = model.createResource("http://localhost/iri/userid2");
+    private final Resource USER_3 = model.createResource("http://localhost/iri/userid3");
+    private final Resource USER_4 = model.createResource("http://localhost/iri/userid4");
 
     @Mock
     BlobStore store;
@@ -50,6 +51,9 @@ public class CollectionResourceTest {
     @Mock
     MetadataService metadataService;
 
+    @Mock
+    WebDavProperties webDavProperties;
+
     Context context = new Context();
 
     @Before
@@ -59,10 +63,18 @@ public class CollectionResourceTest {
                 .add(COLLECTION_1, RDF.type, FS.Collection)
                 .add(COLLECTION_1, FS.ownedBy, WORKSPACE_1)
                 .add(COLLECTION_1, FS.belongsTo, WORKSPACE_1);
-
+        var vocabulary = model.read("test-vocabulary.ttl");
+        var userVocabulary = model.read("vocabulary.ttl");
         context.set(METADATA_SERVICE, metadataService);
-        var factory = new DavFactory(model.createResource(baseUri), store, userService, context);
-        resource = new CollectionResource(factory, COLLECTION_1, Access.Manage);
+        var factory = new DavFactory(
+                model.createResource(baseUri),
+                store,
+                userService,
+                context,
+                webDavProperties,
+                userVocabulary,
+                vocabulary);
+        resource = new CollectionResource(factory, COLLECTION_1, Access.Manage, userVocabulary, vocabulary);
 
         setupRequestContext();
     }

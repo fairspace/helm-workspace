@@ -7,12 +7,15 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.pivovarit.function.ThrowingFunction;
+import jakarta.servlet.http.HttpServletRequest;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.query.ReadWrite;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.sparql.JenaTransactionException;
 import org.apache.jena.system.Txn;
-import org.eclipse.jetty.server.Request;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Component;
 
 import static io.fairspace.saturn.auth.RequestContext.getCurrentRequest;
 import static io.fairspace.saturn.auth.RequestContext.getCurrentUserStringUri;
@@ -21,6 +24,12 @@ import static io.fairspace.saturn.auth.RequestContext.setCurrentUserStringUri;
 
 import static java.lang.Thread.currentThread;
 
+@Component
+@ConditionalOnProperty(
+        name = "application.jena.bulkTransactions",
+        havingValue = "true",
+        matchIfMissing = true // BulkTransactions is used by default
+        )
 public class BulkTransactions extends BaseTransactions {
     private final LinkedBlockingQueue<Task<?, ?>> queue = new LinkedBlockingQueue<>();
     private static final AtomicInteger threadCounter = new AtomicInteger();
@@ -43,7 +52,7 @@ public class BulkTransactions extends BaseTransactions {
             },
             "Batch transaction processor " + threadCounter.incrementAndGet());
 
-    public BulkTransactions(Dataset ds) {
+    public BulkTransactions(@Qualifier("dataset") Dataset ds) {
         super(ds);
 
         worker.start();
@@ -105,13 +114,13 @@ public class BulkTransactions extends BaseTransactions {
 
     private static class Task<R, E extends Exception> {
         private final CountDownLatch canBeRead = new CountDownLatch(1);
-        private final Request request;
+        private final HttpServletRequest request;
         private final String userUri;
         private final ThrowingFunction<? super Model, R, E> job;
         private R result;
         private Throwable error;
 
-        Task(Request request, String userUri, ThrowingFunction<? super Model, R, E> job) {
+        Task(HttpServletRequest request, String userUri, ThrowingFunction<? super Model, R, E> job) {
             this.request = request;
             this.userUri = userUri;
             this.job = job;

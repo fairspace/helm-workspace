@@ -5,12 +5,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import lombok.extern.log4j.*;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.apache.jena.graph.Node;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.vocabulary.RDF;
 import org.apache.jena.vocabulary.RDFS;
+import org.springframework.stereotype.Service;
 
 import io.fairspace.saturn.rdf.dao.DAO;
 import io.fairspace.saturn.rdf.transactions.Transactions;
@@ -27,14 +29,13 @@ import static com.google.common.base.Strings.isNullOrEmpty;
 import static java.util.stream.Collectors.toList;
 
 @Log4j2
+@Service
+@RequiredArgsConstructor
 public class WorkspaceService {
-    private final Transactions tx;
-    private final UserService userService;
 
-    public WorkspaceService(Transactions tx, UserService userService) {
-        this.tx = tx;
-        this.userService = userService;
-    }
+    private final Transactions tx;
+
+    private final UserService userService;
 
     public List<Workspace> listWorkspaces() {
         return tx.calculateRead(m -> {

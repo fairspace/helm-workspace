@@ -6,6 +6,8 @@ import java.util.stream.Collectors;
 
 import lombok.*;
 
+import io.fairspace.saturn.config.properties.ViewsProperties;
+
 import static io.fairspace.saturn.config.ViewsConfig.*;
 
 @Data
@@ -14,7 +16,7 @@ public class Table {
     @Builder
     public static class ColumnDefinition {
         String name;
-        ColumnType type;
+        ViewsProperties.ColumnType type;
     }
 
     public static ColumnDefinition idColumn() {
@@ -24,11 +26,11 @@ public class Table {
     public static ColumnDefinition idColumn(String prefix) {
         return ColumnDefinition.builder()
                 .name(prefix == null ? "id" : prefix.toLowerCase() + "_id")
-                .type(ColumnType.Identifier)
+                .type(ViewsProperties.ColumnType.Identifier)
                 .build();
     }
 
-    public static ColumnDefinition valueColumn(String name, ColumnType type) {
+    public static ColumnDefinition valueColumn(String name, ViewsProperties.ColumnType type) {
         return ColumnDefinition.builder().name(name.toLowerCase()).type(type).build();
     }
 

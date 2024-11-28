@@ -9,29 +9,38 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.jena.graph.Node;
 import org.apache.jena.query.ReadWrite;
 import org.apache.jena.query.TxnType;
+import org.apache.jena.query.text.changes.TextQuadAction;
 import org.apache.jena.sparql.core.DatasetGraph;
-import org.apache.jena.sparql.core.QuadAction;
 
+import io.fairspace.saturn.config.properties.ViewsProperties;
 import io.fairspace.saturn.rdf.AbstractChangesAwareDatasetGraph;
 import io.fairspace.saturn.services.views.ViewStoreClientFactory;
 import io.fairspace.saturn.services.views.ViewUpdater;
 
-import static io.fairspace.saturn.config.ConfigLoader.CONFIG;
 import static io.fairspace.saturn.services.users.UserService.currentUserAsSymbol;
 
 @Slf4j
 public class TxnIndexDatasetGraph extends AbstractChangesAwareDatasetGraph {
+
+    private final ViewsProperties viewsProperties;
     private final DatasetGraph dsg;
     private final ViewStoreClientFactory viewStoreClientFactory;
+    private final String publicUrl;
     // One set of updated subjects if write transactions are handled sequentially.
     // If many write transactions can be active simultaneously, this set needs to be
     // tied to the active thread.
     private final Set<Node> updatedSubjects = new HashSet<>();
 
-    public TxnIndexDatasetGraph(DatasetGraph dsg, ViewStoreClientFactory viewStoreClientFactory) {
+    public TxnIndexDatasetGraph(
+            ViewsProperties viewsProperties,
+            DatasetGraph dsg,
+            ViewStoreClientFactory viewStoreClientFactory,
+            String publicUrl) {
         super(dsg);
+        this.viewsProperties = viewsProperties;
         this.dsg = dsg;
         this.viewStoreClientFactory = viewStoreClientFactory;
+        this.publicUrl = publicUrl;
     }
 
     private void markSubject(Node subject) {
@@ -42,7 +51,7 @@ public class TxnIndexDatasetGraph extends AbstractChangesAwareDatasetGraph {
      * Collects changes
      */
     @Override
-    protected void onChange(QuadAction action, Node graph, Node subject, Node predicate, Node object) {
+    protected void onChange(TextQuadAction action, Node graph, Node subject, Node predicate, Node object) {
         switch (action) {
             case ADD, DELETE -> markSubject(subject);
         }
@@ -74,7 +83,7 @@ public class TxnIndexDatasetGraph extends AbstractChangesAwareDatasetGraph {
                     log.info("Commit {} updated subjects", updatedSubjects.size());
                     var start = new Date().getTime();
                     try (var viewStoreClient = viewStoreClientFactory.build();
-                            var viewUpdater = new ViewUpdater(viewStoreClient, dsg)) {
+                            var viewUpdater = new ViewUpdater(viewsProperties, viewStoreClient, dsg, publicUrl)) {
                         updatedSubjects.forEach(viewUpdater::updateSubject);
                         viewUpdater.commit();
                         log.debug(
@@ -112,6 +121,6 @@ public class TxnIndexDatasetGraph extends AbstractChangesAwareDatasetGraph {
 
     private boolean isExtraStorageTransaction() {
         return updatedSubjects.stream()
-                .anyMatch(r -> r.isURI() && r.getURI().startsWith(CONFIG.publicUrl + "/api/extra-storage"));
+                .anyMatch(r -> r.isURI() && r.getURI().startsWith(publicUrl + "/api/extra-storage"));
     }
 }

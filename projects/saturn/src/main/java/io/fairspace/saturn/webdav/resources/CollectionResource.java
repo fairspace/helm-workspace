@@ -11,6 +11,7 @@ import io.milton.http.Request;
 import io.milton.http.exceptions.BadRequestException;
 import io.milton.http.exceptions.ConflictException;
 import io.milton.http.exceptions.NotAuthorizedException;
+import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.rdf.model.Statement;
 import org.apache.jena.vocabulary.RDF;
@@ -27,8 +28,9 @@ import static java.util.stream.Collectors.joining;
 
 public class CollectionResource extends DirectoryResource {
 
-    public CollectionResource(DavFactory factory, Resource subject, Access access) {
-        super(factory, subject, access);
+    public CollectionResource(
+            DavFactory factory, Resource subject, Access access, Model userVocabulary, Model vocabulary) {
+        super(factory, subject, access, userVocabulary, vocabulary);
     }
 
     @Override

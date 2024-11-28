@@ -1,0 +1,120 @@
+server:
+  port: 8090
+  servlet:
+    context-path: /api
+
+# Configuration to access the Keycloak server (user lists, user count, etc.)
+keycloak:
+  auth-server-url: ${KEYCLOAK_AUTH_SERVER_URL:http://localhost:5100}
+  realm: ${KEYCLOAK_REALM:fairspace}
+  client-id: ${KEYCLOAK_CLIENT_ID:workspace-client}
+  client-secret: ${KEYCLOAK_CLIENT_SECRET:**********}
+  super-admin-user: ${KEYCLOAK_SUPER_ADMIN_USER:organisation-admin}
+  default-user-roles:
+    -
+
+# Configuration of Saturn as a resource server
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${keycloak.auth-server-url}/realms/fairspace
+          jwk-set-uri: ${spring.security.oauth2.resourceserver.jwt.issuer-uri}/protocol/openid-connect/certs
+  servlet:
+    multipart:
+      max-file-size: 2GB
+      max-request-size: 2GB
+  http:
+    multipart:
+      enabled: true
+
+# Configuration for JWT token conversion
+jwt:
+  auth:
+    converter:
+      resource-id: workspace-client
+      principal-attribute: preferred_username
+
+application:
+  publicUrl: ${PUBLIC_URL:http://localhost:8080}
+  jena:
+    # Base IRI for all metadata entities
+    metadataBaseIRI: ${METADATA_BASE_IRI:http://localhost/iri/}
+    # Jena's TDB2 database path
+    datasetPath: ${DATASET_PATH:data/db}
+    # Path of the transaction log
+    transactionLogPath: ${TRANSACTION_LOG_PATH:data/log}
+    bulkTransactions: ${BULK_TRANSACTIONS:true}
+    sparql-query-timeout: ${SPARQL_TIMEOUT:30000}
+    tbd-store-params:
+      file_mode: "mapped"
+      block_size: 8193
+      block_read_cache_size: 5000
+      block_write_cache_size: 1000
+      node2nodeid_cache_size: 200000
+      nodeid2node_cache_size: 750000
+      node_miss_cache_size: 1000
+      nodetable: "nodes"
+      triple_index_primary: "SPO"
+      triple_indexes:
+        - "SPO"
+        - "POS"
+        - "OSP"
+      quad_index_primary: "GSPO"
+      quad_indexes:
+        - "GSPO"
+        - "GPOS"
+        - "GOSP"
+        - "POSG"
+        - "OSPG"
+        - "SPOG"
+      prefixtable: "prefixes"
+      prefix_index_primary: "GPU"
+      prefix_indexes:
+        - "GPU"
+  features:
+    - ExtraStorage
+  view-database:
+    enabled: ${VIEW_DATABASE_ENABLED:true}
+    url: ${VIEW_DATABASE_URL:jdbc:postgresql://localhost:9432/fairspace}
+    username: ${VIEW_DATABASE_USERNAME:fairspace}
+    autoCommitEnabled: ${VIEW_DATABASE_AUTO_COMMIT:false}
+    maxPoolSize: ${VIEW_DATABASE_MAX_POOL_SIZE:10}
+    connectionTimeout: ${VIEW_DATABASE_CONNECTION_TIMEOUT:1000}
+    password: ${VIEW_DATABASE_PASSWORD:fairspace}
+    mvRefreshOnStartRequired: ${MV_REFRESH_ON_START_REQUIRED:true}
+  cache:
+    facets:
+      name: "facets"
+      autoRefreshEnabled: false
+      refreshFrequencyInHours: 240
+    views:
+      name: "views"
+      autoRefreshEnabled: false
+      refreshFrequencyInHours: 240
+  search:
+    pageRequestTimeout: 10000
+    countRequestTimeout: 60000
+    maxJoinItems: 50
+  webdav:
+    # Path of the WebDAV's local blob store
+    blobStorePath: ${WEBDAV_BLOB_STORE_PATH:data/blobs}
+    extra-storage:
+      blobStorePath: "data/extra-blobs"
+      defaultRootCollections:
+        - "analysis-export"
+
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    readinessState:
+      enabled: true
+    livenessState:
+      enabled: true
+  server:
+    port: 8091

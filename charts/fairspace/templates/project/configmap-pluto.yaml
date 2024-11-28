@@ -11,7 +11,7 @@ data:
       domains:
         - {{ template "fairspace.url" . }}
 {{ if .Values.pluto.externalDomains }}{{ toYaml .Values.pluto.externalDomains | indent 8 }}{{ end }}
-      downstreamServiceHealthUrl: {{ .Values.pluto.backends.saturn | default "http://localhost:8090"}}/api/health/
+      downstreamServiceHealthUrl: {{ .Values.pluto.backends.saturn | default "http://localhost:8091"}}/actuator/health/
       max-file-size: {{ .Values.pluto.maxFileSize }}
       staticHtmlLocation: /opt/mercury
       oauth2:

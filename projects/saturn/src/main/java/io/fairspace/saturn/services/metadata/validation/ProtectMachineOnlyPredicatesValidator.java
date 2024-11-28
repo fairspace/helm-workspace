@@ -8,6 +8,8 @@ import org.apache.jena.rdf.model.Property;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.shacl.vocabulary.SHACLM;
 import org.apache.jena.vocabulary.RDF;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.stereotype.Component;
 
 import io.fairspace.saturn.vocabulary.FS;
 
@@ -22,9 +24,10 @@ import static org.apache.jena.rdf.model.ResourceFactory.createProperty;
  * This validator checks whether the requested action will modify any machine-only
  * predicates. If so, the request will not validate
  */
+@Component
 public class ProtectMachineOnlyPredicatesValidator extends VocabularyAwareValidator {
 
-    public ProtectMachineOnlyPredicatesValidator(Model vocabulary) {
+    public ProtectMachineOnlyPredicatesValidator(@Qualifier("vocabulary") Model vocabulary) {
         super(vocabulary);
     }
 

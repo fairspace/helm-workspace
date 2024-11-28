@@ -1,30 +1,34 @@
 package io.fairspace.saturn.auth;
 
-import java.security.Principal;
+import java.util.Map;
 import java.util.Optional;
 
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.EqualsAndHashCode;
 import org.apache.jena.graph.Node;
-import org.eclipse.jetty.server.*;
-import org.keycloak.KeycloakPrincipal;
-import org.keycloak.KeycloakSecurityContext;
-import org.keycloak.representations.AccessToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtClaimAccessor;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import io.fairspace.saturn.rdf.SparqlUtils;
 
 public class RequestContext {
 
-    private static final ThreadLocal<Request> currentRequest = new ThreadLocal<>();
+    private static final ThreadLocal<HttpServletRequest> currentRequest = new ThreadLocal<>();
 
     private static final ThreadLocal<String> currentUserUri = new ThreadLocal<>();
 
-    public static Request getCurrentRequest() {
-        return Optional.ofNullable(HttpConnection.getCurrentConnection())
-                .map(HttpConnection::getHttpChannel)
-                .map(HttpChannel::getRequest)
+    public static HttpServletRequest getCurrentRequest() {
+        return Optional.ofNullable(RequestContextHolder.getRequestAttributes())
+                .map(ServletRequestAttributes.class::cast)
+                .map(ServletRequestAttributes::getRequest)
                 .orElseGet(currentRequest::get);
     }
 
-    public static void setCurrentRequest(Request request) {
+    public static void setCurrentRequest(HttpServletRequest request) {
         currentRequest.set(request);
     }
 
@@ -40,37 +44,61 @@ public class RequestContext {
         currentUserUri.set(uri);
     }
 
-    private static Optional<UserIdentity> getUserIdentity() {
-        return Optional.ofNullable(getCurrentRequest())
-                .map(Request::getAuthentication)
-                .map(x -> (Authentication.User) x)
-                .map(Authentication.User::getUserIdentity);
-    }
-
-    private static Optional<Principal> getPrincipal() {
-        return getUserIdentity().map(UserIdentity::getUserPrincipal);
-    }
-
     public static Node getUserURI() {
-        return getPrincipal()
-                .map(Principal::getName)
-                .map(SparqlUtils::generateMetadataIri)
+        return getJwt().map(JwtClaimAccessor::getSubject)
+                .map(SparqlUtils::generateMetadataIriFromId)
+                .or(() -> Optional.ofNullable(currentUserUri.get()).map(SparqlUtils::generateMetadataIriFromUri))
                 .orElse(null);
     }
 
-    public static AccessToken getAccessToken() {
-        return getPrincipal()
-                .map(x -> (KeycloakPrincipal<?>) x)
-                .map(KeycloakPrincipal::getKeycloakSecurityContext)
-                .map(KeycloakSecurityContext::getToken)
-                .orElse(null);
+    public static SaturnClaims getClaims() {
+        return getJwt().map(Jwt::getClaims).map(SaturnClaims::from).orElseGet(SaturnClaims::emptyClaims);
     }
 
-    public static String getIdTokenString() {
-        return getPrincipal()
-                .map(x -> (KeycloakPrincipal<?>) x)
-                .map(KeycloakPrincipal::getKeycloakSecurityContext)
-                .map(KeycloakSecurityContext::getIdTokenString)
-                .orElse(null);
+    private static Optional<Authentication> getAuthentication() {
+        return Optional.ofNullable(SecurityContextHolder.getContext().getAuthentication());
+    }
+
+    private static Optional<Jwt> getJwt() {
+        return getAuthentication().map(Authentication::getPrincipal).map(Jwt.class::cast);
+    }
+
+    @EqualsAndHashCode
+    public static class SaturnClaims {
+
+        private static final String PREFERRED_USERNAME = "preferred_username";
+        private static final String SUBJECT = "sub";
+        private static final String EMAIL = "email";
+        private static final String NAME = "name";
+
+        private final Map<String, Object> claims;
+
+        private SaturnClaims(Map<String, Object> claims) {
+            this.claims = claims;
+        }
+
+        public static SaturnClaims from(Map<String, Object> claims) {
+            return new SaturnClaims(claims);
+        }
+
+        public static SaturnClaims emptyClaims() {
+            return new SaturnClaims(Map.of());
+        }
+
+        public String getPreferredUsername() {
+            return (String) claims.get(PREFERRED_USERNAME);
+        }
+
+        public String getSubject() {
+            return (String) claims.get(SUBJECT);
+        }
+
+        public String getEmail() {
+            return (String) claims.get(EMAIL);
+        }
+
+        public String getName() {
+            return (String) claims.get(NAME);
+        }
     }
 }

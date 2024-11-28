@@ -14,28 +14,72 @@ import javax.sql.DataSource;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
 import lombok.Builder;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Component;
 
-import io.fairspace.saturn.config.Config;
-import io.fairspace.saturn.config.ViewsConfig;
-import io.fairspace.saturn.config.ViewsConfig.ColumnType;
-import io.fairspace.saturn.config.ViewsConfig.View;
+import io.fairspace.saturn.config.properties.ViewDatabaseProperties;
+import io.fairspace.saturn.config.properties.ViewsProperties;
+import io.fairspace.saturn.config.properties.ViewsProperties.ColumnType;
+import io.fairspace.saturn.config.properties.ViewsProperties.View;
 import io.fairspace.saturn.vocabulary.FS;
 
 import static io.fairspace.saturn.services.views.Table.idColumn;
 import static io.fairspace.saturn.services.views.Table.valueColumn;
 
 @Slf4j
+@Component
+@ConditionalOnProperty(value = "application.view-database.enabled", havingValue = "true")
 public class ViewStoreClientFactory {
+
+    public static final Set<String> protectedResources = Set.of(FS.COLLECTION_URI, FS.DIRECTORY_URI, FS.FILE_URI);
 
     private final MaterializedViewService materializedViewService;
 
+    private final ViewStoreClient.ViewStoreConfiguration configuration;
+
+    public final DataSource dataSource;
+
+    public ViewStoreClientFactory(
+            ViewsProperties viewsProperties,
+            ViewDatabaseProperties viewDatabaseProperties,
+            MaterializedViewService materializedViewService,
+            DataSource dataSource,
+            ViewStoreClient.ViewStoreConfiguration configuration)
+            throws SQLException {
+        log.debug("Initializing the database connection");
+
+        this.dataSource = dataSource;
+        this.materializedViewService = materializedViewService;
+        this.configuration = configuration;
+
+        try (var connection = dataSource.getConnection()) {
+            log.debug("Database connection: {}", connection.getMetaData().getDatabaseProductName());
+        }
+
+        createOrUpdateTable(new Table(
+                "label",
+                List.of(idColumn(), valueColumn("type", ColumnType.Text), valueColumn("label", ColumnType.Text))));
+
+        // todo: configuration is initialized within the loop below, do the initialization in constructor
+        for (View view : viewsProperties.views) {
+            createOrUpdateView(view);
+        }
+        if (viewDatabaseProperties.isMvRefreshOnStartRequired()) {
+            materializedViewService.createOrUpdateAllMaterializedViews();
+        } else {
+            log.warn("Skipping materialized view refresh on start");
+        }
+    }
+
     public ViewStoreClient build() throws SQLException {
         return new ViewStoreClient(getConnection(), configuration, materializedViewService);
+    }
+
+    public Connection getConnection() throws SQLException {
+        return dataSource.getConnection();
     }
 
     public String databaseTypeForColumnType(ColumnType type) {
@@ -47,49 +91,6 @@ public class ViewStoreClientFactory {
             case Identifier -> "text not null";
             case Set, TermSet -> throw new IllegalArgumentException("No database type for column type set.");
         };
-    }
-
-    public static final Set<String> protectedResources = Set.of(FS.COLLECTION_URI, FS.DIRECTORY_URI, FS.FILE_URI);
-
-    final ViewStoreClient.ViewStoreConfiguration configuration;
-    public final DataSource dataSource;
-
-    public ViewStoreClientFactory(ViewsConfig viewsConfig, Config.ViewDatabase viewDatabase, Config.Search search)
-            throws SQLException {
-        log.debug("Initializing the database connection");
-        var databaseConfig = new HikariConfig();
-        databaseConfig.setJdbcUrl(viewDatabase.url);
-        databaseConfig.setUsername(viewDatabase.username);
-        databaseConfig.setPassword(viewDatabase.password);
-        databaseConfig.setAutoCommit(viewDatabase.autoCommit);
-        databaseConfig.setConnectionTimeout(viewDatabase.connectionTimeout);
-        databaseConfig.setMaximumPoolSize(viewDatabase.maxPoolSize);
-
-        dataSource = new HikariDataSource(databaseConfig);
-
-        try (var connection = dataSource.getConnection()) {
-            log.debug("Database connection: {}", connection.getMetaData().getDatabaseProductName());
-        }
-
-        createOrUpdateTable(new Table(
-                "label",
-                List.of(idColumn(), valueColumn("type", ColumnType.Text), valueColumn("label", ColumnType.Text))));
-
-        configuration = new ViewStoreClient.ViewStoreConfiguration(viewsConfig);
-        // todo: configuration is initialized within the loop below, do the initialization in constructor
-        for (View view : viewsConfig.views) {
-            createOrUpdateView(view);
-        }
-        materializedViewService = new MaterializedViewService(dataSource, configuration, search.maxJoinItems);
-        if (viewDatabase.mvRefreshOnStartRequired) {
-            materializedViewService.createOrUpdateAllMaterializedViews();
-        } else {
-            log.warn("Skipping materialized view refresh on start");
-        }
-    }
-
-    public Connection getConnection() throws SQLException {
-        return dataSource.getConnection();
     }
 
     Map<String, ColumnMetadata> getColumnMetadata(Connection connection, String table) throws SQLException {
@@ -205,7 +206,7 @@ public class ViewStoreClientFactory {
         connection.setAutoCommit(false);
     }
 
-    void validateViewConfig(ViewsConfig.View view) {
+    void validateViewConfig(ViewsProperties.View view) {
         if (view.columns.stream().anyMatch(column -> "id".equalsIgnoreCase(column.name))) {
             throw new IllegalArgumentException("Forbidden to override the built-in column 'id' of view " + view.name);
         }
@@ -223,7 +224,7 @@ public class ViewStoreClientFactory {
         }
     }
 
-    void createOrUpdateView(ViewsConfig.View view) throws SQLException {
+    void createOrUpdateView(ViewsProperties.View view) throws SQLException {
         // Add view table
         validateViewConfig(view);
         var columns = new ArrayList<Table.ColumnDefinition>();
@@ -244,7 +245,7 @@ public class ViewStoreClientFactory {
         // Add property tables
         var setColumns =
                 view.columns.stream().filter(column -> column.type.isSet()).toList();
-        for (ViewsConfig.View.Column column : setColumns) {
+        for (ViewsProperties.View.Column column : setColumns) {
             var propertyTableColumns = new ArrayList<Table.ColumnDefinition>();
             propertyTableColumns.add(idColumn(view.name));
             propertyTableColumns.add(valueColumn(column.name, ColumnType.Identifier));
@@ -256,7 +257,7 @@ public class ViewStoreClientFactory {
         }
         if (view.join != null) {
             // Add join tables
-            for (ViewsConfig.View.JoinView join : view.join) {
+            for (ViewsProperties.View.JoinView join : view.join) {
                 var joinTable = getJoinTable(join, view);
                 createOrUpdateJoinTable(joinTable);
                 configuration.joinTables.putIfAbsent(view.name, new HashMap<>());
