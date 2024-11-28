@@ -3233,14 +3233,14 @@ and, together with link:https://bitbucket.org/connect2id/nimbus-jose-jwt[Nimbus 
 The heart of Fairspace, back-end application handling all the logic and connection to the storages.
 Data repository and catalog.
 
-Saturn is served as link:https://jena.apache.org/documentation/fuseki2/[Apache Jena Fuseki SPARQL] server,
-embedded into link:https://www.eclipse.org/jetty/[Jetty] Web server.
+Saturn is also a link:https://spring.io/projects/spring-boot[Java Spring Boot] application with embedded Tomcat web server.
 
 Saturn uses link:https://jena.apache.org/documentation/rdf/[Apache Jena RDF] for handling RDF graphs,
 serialisation of triples and TDB triple store connection.
 All data within Fairspace, except to uploaded files and logs, are stored in Apache Jena RDF database.
 
-For security, Saturn is integrated with Keycloak using link:https://www.keycloak.org/docs/latest/securing_apps/#_jetty9_adapter[Keycloak Jetty client adapter].
+Saturn is secured using OAuth2 with Keycloak, integrated with Spring Boot and
+link:https://docs.spring.io/spring-security/reference/servlet/oauth2/[Spring Security].
 It enables user authentication with access tokens.
 
 Saturn is also responsible for authorization of users in Fairspace - it includes user access validators
