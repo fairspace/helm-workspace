@@ -86,6 +86,6 @@ data:
 
 # Add external svg icons to the configmap data
 {{- range $key, $value := .Values.svgicons }}
-  {{ (print $key ".svg") }}: |-
-    {{ $value | nindent 4 }}
+{{ (print $key ".svg") | indent 2 }}: |
+{{ $value | indent 4 }}
 {{- end }}
