@@ -17,6 +17,7 @@ plugins {
     id 'jacoco'
     id "org.owasp.dependencycheck" version "8.2.1"
     id "com.diffplug.spotless" version "6.25.0"
+    id 'com.github.jk1.dependency-license-report' version '2.9'
 }
 
 group 'io.fairspace'
@@ -115,4 +116,10 @@ test {
     // That is why this additional arg for tests is needed
     jvmArgs = ['--add-opens', 'java.base/java.util=ALL-UNNAMED']
     useJUnitPlatform()
+}
+
+import com.github.jk1.license.filter.LicenseBundleNormalizer
+licenseReport {
+    filters = [new LicenseBundleNormalizer(bundlePath: "$projectDir/license-normalizer-bundle.json")]
+    allowedLicensesFile = new File("$projectDir/allowed-licenses.json")
 }
