@@ -1,5 +1,7 @@
 package nl.fairspace.pluto.web;
 
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 
 import lombok.RequiredArgsConstructor;
@@ -29,6 +31,15 @@ public class IconsResourceService {
         if (iconPath == null) {
             return null;
         }
-        return getClass().getResourceAsStream(iconPath);
+        try {
+            InputStream inputStream = getClass().getResourceAsStream(iconPath);
+            if (inputStream != null && inputStream.available() > 0) {
+                return inputStream;
+            }
+            return new FileInputStream(iconPath);
+        } catch (IOException e) {
+            log.warn("Icon file not found in : {}", iconPath);
+            return null;
+        }
     }
 }

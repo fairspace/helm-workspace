@@ -6,7 +6,6 @@ import java.util.concurrent.TimeUnit;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.IOUtils;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,7 +35,7 @@ public class IconsResource {
             }
             return ResponseEntity.ok()
                     .cacheControl(CacheControl.maxAge(30, TimeUnit.DAYS).cachePrivate())
-                    .body(IOUtils.toByteArray(in));
+                    .body(in.readAllBytes());
         } catch (IOException e) {
             log.error("Error reading image", e);
             return ResponseEntity.notFound().build();
