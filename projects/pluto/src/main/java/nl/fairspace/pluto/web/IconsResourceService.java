@@ -1,13 +1,14 @@
 package nl.fairspace.pluto.web;
 
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import nl.fairspace.pluto.config.dto.PlutoConfig;
-import org.springframework.stereotype.Service;
-
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+import nl.fairspace.pluto.config.dto.PlutoConfig;
 
 import static nl.fairspace.pluto.config.Urls.ICONS_PATH;
 
