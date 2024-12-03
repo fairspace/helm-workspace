@@ -34,6 +34,21 @@
   "failureFactor": 30,
   "users": [
     {
+      "username": "service-account-${WORKSPACE_CLIENT_ID}",
+      "enabled": true,
+      "serviceAccountClientId": "${WORKSPACE_CLIENT_ID}",
+      "disableableCredentialTypes": [],
+      "requiredActions": [],
+      "realmRoles": [
+        "default-roles-fairspace"
+      ],
+      "clientRoles": {
+        "realm-management": [
+          "view-users"
+        ]
+      }
+    },
+    {
       "username": "organisation-admin",
       "enabled": true,
       "credentials": [
