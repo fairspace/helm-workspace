@@ -15,7 +15,7 @@ import io.fairspace.saturn.config.properties.ViewDatabaseProperties;
 public class SecondaryStorageConfig {
 
     @Bean
-    public DataSource dataSource(ViewDatabaseProperties viewDatabaseProperties) {
+    public DataSource postgresDataSource(ViewDatabaseProperties viewDatabaseProperties) {
         var databaseConfig = getHikariConfig(viewDatabaseProperties);
         return new HikariDataSource(databaseConfig);
     }

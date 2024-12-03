@@ -5,18 +5,18 @@ import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 
 import io.fairspace.saturn.auth.JwtAuthConverterProperties;
 import io.fairspace.saturn.services.IRIModule;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @ImportAutoConfiguration(exclude = {SecurityAutoConfiguration.class, OAuth2ResourceServerAutoConfiguration.class})
 @Import(BaseControllerTest.CustomObjectMapperConfig.class)
 public class BaseControllerTest {
 
-    @MockBean
+    @MockitoBean
     private JwtAuthConverterProperties jwtAuthConverterProperties;
 
     @TestConfiguration

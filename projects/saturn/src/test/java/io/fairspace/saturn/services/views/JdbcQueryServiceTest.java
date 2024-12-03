@@ -117,10 +117,8 @@ public class JdbcQueryServiceTest extends PostgresAwareTest {
         searchProperties.setMaxJoinItems(50);
         var configuration = new ViewStoreClient.ViewStoreConfiguration(viewsProperties);
         DataSource dataSource = getDataSource(viewDatabase);
-        MaterializedViewService materializedViewService = new MaterializedViewService(
-                dataSource, configuration, viewsProperties, searchProperties.getMaxJoinItems());
         var viewStoreClientFactory = new ViewStoreClientFactory(
-                viewsProperties, viewDatabase, materializedViewService, dataSource, configuration);
+                viewsProperties, viewDatabase, dataSource, configuration);
 
         var dsg = new TxnIndexDatasetGraph(
                 viewsProperties, DatasetGraphFactory.createTxnMem(), viewStoreClientFactory, PUBLIC_URL);

@@ -69,15 +69,9 @@ public class ViewStoreClient implements AutoCloseable {
     @Getter
     private final ViewStoreConfiguration configuration;
 
-    private final MaterializedViewService materializedViewService;
-
-    public ViewStoreClient(
-            Connection connection,
-            ViewStoreConfiguration configuration,
-            MaterializedViewService materializedViewService) {
+    public ViewStoreClient(Connection connection, ViewStoreConfiguration configuration) {
         this.connection = connection;
         this.configuration = configuration;
-        this.materializedViewService = materializedViewService;
     }
 
     @Override
@@ -87,7 +81,6 @@ public class ViewStoreClient implements AutoCloseable {
 
     public void commit() throws SQLException {
         this.connection.commit();
-        materializedViewService.createOrUpdateAllMaterializedViews();
     }
 
     public void deleteRow(String view, String uri) throws SQLException {

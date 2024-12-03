@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="io.fairspace.saturn.mapper.ViewMapper">
+
+    <select id="getTotalCount" resultType="Integer">
+        SELECT COUNT(*) FROM (
+            <include refid="filterParentViews"/>
+        )
+    </select>
+
+    <select id="selectParentViewRelationsPaginated" resultType="io.fairspace.saturn.mapper.ViewRelation">
+        SELECT
+            vv.parent_view_type AS parentViewType,
+            vv.parent_view_name AS parentViewName,
+            vv.child_view_type AS childViewType,
+            vv.child_view_name AS childViewName,
+            vv.self_reference AS selfReference
+        FROM fairspace.view_to_view vv
+        <where>
+            vv.parent_view_name IN (
+                <include refid="filterParentViews"/>
+                LIMIT #{limit} OFFSET #{offset}
+            )
+        </where>
+    </select>
+
+    <sql id="filterParentViews">
+        SELECT DISTINCT(parent_view_name)
+        FROM fairspace.view_to_view
+        <where>
+            view_to_view.parent_view_type = #{viewType}
+            <if test="query.hasParentNameFilter()">
+                <bind name="pattern" value="'%' + query.getParentViewNamePattern() + '%'" />
+                AND view_to_view.parent_view_name LIKE #{pattern}
+            </if>
+            <if test="query.hasStringFilters()">
+                AND view_to_view.parent_view_name IN
+                    <foreach collection="query.getStringFilters()" open="(" separator=" intersect " close=")" item="filter" >
+                        (<include refid="stringAttributeFilter"/>)
+                    </foreach>
+            </if>
+            <if test="query.hasNumberFilters()">
+                AND view_to_view.parent_view_name IN
+                    <foreach collection="query.getNumberFilters()" open="(" separator=" intersect " close=")" item="filter" >
+                        (<include refid="numberAttributeFilter"/>)
+                    </foreach>
+            </if>
+            <if test="query.hasDateFilters()">
+                AND view_to_view.parent_view_name IN
+                    <foreach collection="query.getDateFilters()" open="(" separator=" intersect " close=")" item="filter" >
+                        (<include refid="dateAttributeFilter"/>)
+                    </foreach>
+            </if>
+            <if test="query.hasBooleanFilters()">
+                AND view_to_view.parent_view_name IN
+                    <foreach collection="query.getBooleanFilters()" open="(" separator=" intersect " close=")" item="filter" >
+                        (<include refid="booleanAttributeFilter"/>)
+                    </foreach>
+            </if>
+        </where>
+    </sql>
+
+    <sql id="stringAttributeFilter">
+        SELECT view_name
+        FROM fairspace.view_to_string_attribute vsa
+        <where>
+            vsa.view_type = #{filter.view}
+            AND vsa.attribute_name = #{filter.attribute}
+            AND vsa.value_id IN
+            <foreach collection="filter.values" open="(" separator="," close=")" item="value">
+                '${value}'
+            </foreach>
+        </where>
+    </sql>
+
+    <sql id="numberAttributeFilter">
+        SELECT view_name
+        FROM fairspace.view_to_numeric_attribute va
+        <where>
+            va.view_type = #{filter.view}
+            AND va.attribute_name = #{filter.attribute}
+            <if test="filter.min != null">
+                AND va.value &gt;= #{filter.min}
+            </if>
+            <if test="filter.max != null">
+                AND va.value &lt;= #{filter.max}
+            </if>
+        </where>
+    </sql>
+
+    <sql id="dateAttributeFilter">
+        SELECT view_name
+        FROM fairspace.view_to_date_attribute va
+        <where>
+            va.view_type = #{filter.view}
+            AND va.attribute_name = #{filter.attribute}
+            <if test="filter.min != null">
+                AND toDateTime(va.value) &gt;= parseDateTimeBestEffort('${filter.min}')
+            </if>
+            <if test="filter.max != null">
+                AND toDateTime(va.value) &lt;= parseDateTimeBestEffort('${filter.max}')
+            </if>
+        </where>
+    </sql>
+
+    <sql id="booleanAttributeFilter">
+        <bind name="bool" value="filter.getBooleanValue() ? 1 : 0"/>
+        SELECT view_name
+        FROM fairspace.view_to_boolean_attribute va
+        <where>
+            va.view_type = #{filter.view}
+            AND va.attribute_name = #{filter.attribute}
+            AND va.value = #{bool}
+        </where>
+    </sql>
+
+    <select id="selectStringViewAttributes" resultType="io.fairspace.saturn.mapper.ViewAttributeString">
+        SELECT
+            va.view_type AS viewType,
+            va.view_name AS viewName,
+            va.attribute_name AS attributeName,
+            va.value AS value
+        FROM fairspace.view_to_string_attribute va
+        <where>
+            va.view_type = #{viewType}
+            <if test="viewNames != null and !viewNames.isEmpty()">
+                AND va.view_name IN
+                    <foreach collection="viewNames" open="(" separator="," close=")" item="viewName">
+                        '${viewName}'
+                    </foreach>
+            </if>
+        </where>
+    </select>
+
+    <select id="selectIntViewAttributes" resultType="io.fairspace.saturn.mapper.ViewAttributeInt">
+        SELECT
+            va.view_type AS viewType,
+            va.view_name AS viewName,
+            va.attribute_name AS attributeName,
+            va.value AS value
+        FROM fairspace.view_to_numeric_attribute va
+        <where>
+            va.view_type = #{viewType}
+            <if test="viewNames != null and !viewNames.isEmpty()">
+                AND va.view_name IN
+                    <foreach collection="viewNames" open="(" separator="," close=")" item="viewName">
+                        '${viewName}'
+                    </foreach>
+            </if>
+        </where>
+    </select>
+
+    <select id="selectDateViewAttributes" resultType="io.fairspace.saturn.mapper.ViewAttributeDate">
+        SELECT
+            va.view_type AS viewType,
+            va.view_name AS viewName,
+            va.attribute_name AS attributeName,
+            va.value AS value
+        FROM fairspace.view_to_date_attribute va
+        <where>
+            va.view_type = #{viewType}
+            <if test="viewNames != null and !viewNames.isEmpty()">
+                AND va.view_name IN
+                    <foreach collection="viewNames" open="(" separator="," close=")" item="viewName">
+                        '${viewName}'
+                    </foreach>
+            </if>
+        </where>
+    </select>
+
+    <select id="selectNumericViewAttributeMinMax" resultType="io.fairspace.saturn.services.views.Range">
+        <include refid="getAttributeMinMax">
+            <property name="table" value="fairspace.numeric_attribute_min_max"/>
+        </include>
+    </select>
+
+    <select id="selectDateViewAttributeMinMax" resultType="io.fairspace.saturn.services.views.Range">
+        <include refid="getAttributeMinMax">
+            <property name="table" value="fairspace.date_attribute_min_max"/>
+        </include>
+    </select>
+
+    <sql id="getAttributeMinMax">
+        SELECT
+            min AS start,
+            max AS end
+        FROM ${table} va
+        <where>
+            va.view_type = #{viewType}
+            AND va.attribute_name = #{attributeName}
+        </where>
+    </sql>
+
+</mapper>

@@ -1,5 +1,3 @@
-version: '3'
-
 services:
   fairspace-keycloak-postgres:
     image: postgres:15-alpine
@@ -71,9 +69,39 @@ services:
         labels: application
         tag: fairspace-postgres
 
+  clickhouse:
+    image: clickhouse/clickhouse-server:22.6
+    container_name: fairspace-clickhouse
+    restart: unless-stopped
+    cap_add:
+      - SYS_NICE
+      - NET_ADMIN
+      - IPC_LOCK
+    environment:
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+      - CLICKHOUSE_DB=fairspace
+      - CLICKHOUSE_USER=fairspace
+      - CLICKHOUSE_PASSWORD=fairspace
+    volumes:
+      - ./clickhouse/data/:/data/
+      - ./clickhouse/scripts/:/docker-entrypoint-initdb.d/
+#      - fairspace-clickhouse-data:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 1000000
+        hard: 1000000
+    logging:
+      driver: ${DOCKER_LOGGING_DRIVER:-journald}
+      options:
+        labels: application
+        tag: fairspace-clickhouse
+    ports:
+      - 8123:8123
+
 volumes:
   fairspace-keycloak-postgres-data:
   fairspace-postgres-data:
+  fairspace-clickhouse-data:
 
 networks:
   fairspace-keycloak-db-network:

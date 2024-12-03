@@ -72,9 +72,6 @@ public class ViewServiceTest extends PostgresAwareTest {
     @Mock
     private MetadataPermissions permissions;
 
-    @Mock
-    private MaterializedViewService materializedViewService;
-
     MetadataService api;
     ViewService viewService;
 
@@ -86,7 +83,7 @@ public class ViewServiceTest extends PostgresAwareTest {
         var configuration = new ViewStoreClient.ViewStoreConfiguration(viewsProperties);
         var dataSource = getDataSource(viewDatabase);
         var viewStoreClientFactory = new ViewStoreClientFactory(
-                viewsProperties, viewDatabase, materializedViewService, dataSource, configuration);
+                viewsProperties, viewDatabase, dataSource, configuration);
         var dsg = new TxnIndexDatasetGraph(
                 viewsProperties, DatasetGraphFactory.createTxnMem(), viewStoreClientFactory, "http://localhost:8080");
 

@@ -37,7 +37,6 @@ import io.fairspace.saturn.services.metadata.validation.ComposedValidator;
 import io.fairspace.saturn.services.metadata.validation.UniqueLabelValidator;
 import io.fairspace.saturn.services.users.User;
 import io.fairspace.saturn.services.users.UserService;
-import io.fairspace.saturn.services.views.MaterializedViewService;
 import io.fairspace.saturn.services.views.ViewService;
 import io.fairspace.saturn.services.views.ViewStoreClient;
 import io.fairspace.saturn.services.views.ViewStoreClientFactory;
@@ -75,9 +74,6 @@ public class JdbcFileSearchServiceTest extends PostgresAwareTest {
 
     @Mock
     private MetadataPermissions permissions;
-
-    @Mock
-    private MaterializedViewService materializedViewService;
 
     WorkspaceService workspaceService;
     MetadataService api;
@@ -123,7 +119,7 @@ public class JdbcFileSearchServiceTest extends PostgresAwareTest {
         var configuration = new ViewStoreClient.ViewStoreConfiguration(viewsProperties);
         var dataSource = getDataSource(viewDatabase);
         var viewStoreClientFactory = new ViewStoreClientFactory(
-                viewsProperties, viewDatabase, materializedViewService, dataSource, configuration);
+                viewsProperties, viewDatabase, dataSource, configuration);
         var dsg = new TxnIndexDatasetGraph(
                 viewsProperties, DatasetGraphFactory.createTxnMem(), viewStoreClientFactory, "http://localhost:8080");
         Dataset ds = wrap(dsg);

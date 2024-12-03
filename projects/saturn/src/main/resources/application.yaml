@@ -79,11 +79,20 @@ application:
     enabled: ${VIEW_DATABASE_ENABLED:true}
     url: ${VIEW_DATABASE_URL:jdbc:postgresql://localhost:9432/fairspace}
     username: ${VIEW_DATABASE_USERNAME:fairspace}
+    password: ${VIEW_DATABASE_PASSWORD:fairspace}
     autoCommitEnabled: ${VIEW_DATABASE_AUTO_COMMIT:false}
     maxPoolSize: ${VIEW_DATABASE_MAX_POOL_SIZE:10}
     connectionTimeout: ${VIEW_DATABASE_CONNECTION_TIMEOUT:1000}
-    password: ${VIEW_DATABASE_PASSWORD:fairspace}
     mvRefreshOnStartRequired: ${MV_REFRESH_ON_START_REQUIRED:true}
+  view-column-store:
+    enabled: ${VIEW_COLUMNSTORE_ENABLED:true}
+    url: ${VIEW_COLUMNSTORE_URL:jdbc:clickhouse://localhost:8123/fairspace}
+    username: ${VIEW_COLUMNSTORE_USERNAME:fairspace}
+    password: ${VIEW_COLUMNSTORE_PASSWORD:fairspace}
+    autoCommitEnabled: ${VIEW_COLUMNSTORE_AUTO_COMMIT:false}
+    maxPoolSize: ${VIEW_COLUMNSTORE_MAX_POOL_SIZE:50}
+    connectionTimeout: ${VIEW_COLUMNSTORE_CONNECTION_TIMEOUT:1000}
+
   cache:
     facets:
       name: "facets"

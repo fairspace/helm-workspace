@@ -36,8 +36,6 @@ public class ViewStoreClientFactory {
 
     public static final Set<String> protectedResources = Set.of(FS.COLLECTION_URI, FS.DIRECTORY_URI, FS.FILE_URI);
 
-    private final MaterializedViewService materializedViewService;
-
     private final ViewStoreClient.ViewStoreConfiguration configuration;
 
     public final DataSource dataSource;
@@ -45,17 +43,15 @@ public class ViewStoreClientFactory {
     public ViewStoreClientFactory(
             ViewsProperties viewsProperties,
             ViewDatabaseProperties viewDatabaseProperties,
-            MaterializedViewService materializedViewService,
-            DataSource dataSource,
+            DataSource postgresDataSource,
             ViewStoreClient.ViewStoreConfiguration configuration)
             throws SQLException {
         log.debug("Initializing the database connection");
 
-        this.dataSource = dataSource;
-        this.materializedViewService = materializedViewService;
+        this.dataSource = postgresDataSource;
         this.configuration = configuration;
 
-        try (var connection = dataSource.getConnection()) {
+        try (var connection = getPostgresConnection()) {
             log.debug("Database connection: {}", connection.getMetaData().getDatabaseProductName());
         }
 
@@ -67,18 +63,13 @@ public class ViewStoreClientFactory {
         for (View view : viewsProperties.views) {
             createOrUpdateView(view);
         }
-        if (viewDatabaseProperties.isMvRefreshOnStartRequired()) {
-            materializedViewService.createOrUpdateAllMaterializedViews();
-        } else {
-            log.warn("Skipping materialized view refresh on start");
-        }
     }
 
     public ViewStoreClient build() throws SQLException {
-        return new ViewStoreClient(getConnection(), configuration, materializedViewService);
+        return new ViewStoreClient(getPostgresConnection(), configuration);
     }
 
-    public Connection getConnection() throws SQLException {
+    public Connection getPostgresConnection() throws SQLException {
         return dataSource.getConnection();
     }
 
@@ -111,7 +102,7 @@ public class ViewStoreClientFactory {
     }
 
     void createOrUpdateTable(Table table) throws SQLException {
-        try (var connection = getConnection()) {
+        try (var connection = getPostgresConnection()) {
             log.debug("Check if table {} exists ...", table.name);
             var resultSet = connection.getMetaData().getTables(null, null, table.name, null);
             var tableExists = resultSet.next();
@@ -124,7 +115,7 @@ public class ViewStoreClientFactory {
     }
 
     void createOrUpdateJoinTable(Table table) throws SQLException {
-        try (var connection = getConnection()) {
+        try (var connection = getPostgresConnection()) {
             log.debug("Check if table {} exists ...", table.name);
             var resultSet = connection.getMetaData().getTables(null, null, table.name, null);
             var tableExists = resultSet.next();

@@ -5,18 +5,23 @@ buildscript {
         mockitoVersion = '5.11.0'
         jacksonVersion = '2.18.1' // check what version is used by Jena
         postgresqlVersion = '42.7.2'
+        mybatisSpringVersion = '3.0.4'
+        clickhouseClientVersion = '0.6.5'
+        mybatisVersion = '3.5.16'
     }
 }
 
 plugins {
     id 'java'
+    id 'idea'
     id 'org.springframework.boot' version '3.4.0'
     id 'io.spring.dependency-management' version '1.1.5'
     id "io.freefair.lombok" version "8.6"
     id 'application'
     id 'jacoco'
     id "org.owasp.dependencycheck" version "8.2.1"
-    id "com.diffplug.spotless" version "6.25.0"
+    // TODO reenable
+    //id "com.diffplug.spotless" version "6.25.0"
 }
 
 group 'io.fairspace'
@@ -71,6 +76,12 @@ dependencies {
 
     implementation "org.postgresql:postgresql:${postgresqlVersion}"
     implementation "com.zaxxer:HikariCP:5.1.0"
+    implementation "com.clickhouse:clickhouse-jdbc:${clickhouseClientVersion}"
+    implementation "org.mybatis:mybatis-spring:${mybatisSpringVersion}"
+    implementation "org.mybatis.spring.boot:mybatis-spring-boot-starter:${mybatisSpringVersion}"
+    implementation "org.mybatis:mybatis:${mybatisVersion}"
+    implementation "org.apache.httpcomponents.client5:httpclient5:5.4.1"
+    implementation "org.lz4:lz4-java:1.8.0"
 
     testImplementation "junit:junit:4.13.2"
     testImplementation "org.mockito:mockito-core:${mockitoVersion}"
@@ -91,18 +102,19 @@ jacocoTestReport {
     }
 }
 
-spotless {
-    java {
-        palantirJavaFormat()
-
-        importOrder('java|javax', '', 'io.fairspace', '\\#io.fairspace', '\\#')
-        removeUnusedImports()
-
-        trimTrailingWhitespace()
-
-        toggleOffOn()
-    }
-}
+// TODO reenable
+//spotless {
+//    java {
+//        palantirJavaFormat()
+//
+//        importOrder('java|javax', '', 'io.fairspace', '\\#io.fairspace', '\\#')
+//        removeUnusedImports()
+//
+//        trimTrailingWhitespace()
+//
+//        toggleOffOn()
+//    }
+//}
 
 dependencyCheck {
     failBuildOnCVSS=9
