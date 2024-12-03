@@ -42,11 +42,11 @@ SELECT 'datafile', va.entity_id, l.type, a.attribute_name, l.id, va.value_text F
     INNER JOIN `fairspace`.label l ON va.value_text = l.label
     WHERE va.view_id = 2 AND a.attribute_name != 'datafile_id' AND a.attribute_name != 'datafile_id' AND va.value_text IS NOT null;
 
-INSERT INTO `fairspace`.`view_to_int_attribute`
+INSERT INTO `fairspace`.`view_to_numeric_attribute`
 SELECT 'study', va.entity_id, a.attribute_name, va.value_int FROM fairspace.view_attribute va
     INNER JOIN`fairspace`. attribute a ON va.attribute_id = a.attribute_id
     WHERE va.view_id = 1 AND a.attribute_name != 'study_id' AND a.attribute_name != 'datafile_id' AND va.value_int IS NOT null;
-INSERT INTO `fairspace`.`view_to_int_attribute`
+INSERT INTO `fairspace`.`view_to_numeric_attribute`
 SELECT 'datafile', va.entity_id, a.attribute_name, va.value_int FROM fairspace.view_attribute va
     INNER JOIN `fairspace`.attribute a ON va.attribute_id = a.attribute_id
     WHERE va.view_id = 2 AND a.attribute_name != 'datafile_id' AND a.attribute_name != 'datafile_id' AND va.value_int IS NOT null;

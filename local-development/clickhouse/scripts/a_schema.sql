@@ -65,12 +65,12 @@ create table if not exists fairspace.view_to_string_attribute
     ORDER BY (`view_type`, `view_name`, `attribute_name`, `value`)
     SETTINGS index_granularity = 8192;
 
-create table if not exists fairspace.view_to_int_attribute
+create table if not exists fairspace.view_to_numeric_attribute
 (
     view_type String,
     view_name String,
     attribute_name String, -- e.g. plannednumberofsubjects
-    value Int64
+    value Float64
 )
     engine = MergeTree
     ORDER BY (`view_type`, `view_name`, `attribute_name`, `value`)

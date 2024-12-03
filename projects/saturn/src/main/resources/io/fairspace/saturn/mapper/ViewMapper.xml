@@ -141,7 +141,7 @@
             va.view_name AS viewName,
             va.attribute_name AS attributeName,
             va.value AS value
-        FROM fairspace.view_to_int_attribute va
+        FROM fairspace.view_to_numeric_attribute va
         <where>
             va.view_type = #{viewType}
             <if test="viewNames != null and !viewNames.isEmpty()">
