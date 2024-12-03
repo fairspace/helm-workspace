@@ -1,4 +1,4 @@
-FROM openjdk:21
+FROM openjdk:24
 
 ADD build/distributions/*.tar /opt/
 
