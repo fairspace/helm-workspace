@@ -2,6 +2,7 @@ package io.fairspace.saturn.services.views;
 
 import io.fairspace.saturn.config.Config;
 import io.fairspace.saturn.config.ViewsConfig;
+import io.fairspace.saturn.config.ViewsConfig.ColumnType;
 import io.fairspace.saturn.config.ViewsConfig.View;
 import io.fairspace.saturn.mapper.*;
 import io.fairspace.saturn.services.search.FileSearchRequest;
@@ -86,7 +87,7 @@ public class ViewStoreReader implements AutoCloseable {
             }
             var column = configuration.viewTables.get(viewConfig.name).getColumn(viewColumn.name.toLowerCase());
             var columnName = viewConfig.name + "_" + viewColumn.name;
-            if (column.type == ViewsConfig.ColumnType.Number) {
+            if (column.type == ColumnType.Number) {
                 var value = intColumnMap.get(column.name);
                 if (value != null) {
                     row.put(columnName, Collections.singleton(new ValueDTO(value.toString(), value.floatValue())));
@@ -100,7 +101,7 @@ public class ViewStoreReader implements AutoCloseable {
                 }
             } else {
                 var value = stringColumnMap.get(column.name);
-                if (viewColumn.type == ViewsConfig.ColumnType.Term) {
+                if (viewColumn.type == ColumnType.Term) {
                     row.put(
                             columnName,
                             Collections.singleton(new ValueDTO(value, iriForLabel(viewColumn.rdfType, value))));
@@ -115,35 +116,28 @@ public class ViewStoreReader implements AutoCloseable {
     /**
      * Compute the range of numerical or date values in a column of a view.
      *
-     * @param view   the view name.
-     * @param column the column name.
+     * @param viewType   the view type.
+     * @param columnName the column name.
      * @return a range object containing the minimum and maximum values.
      */
-    public Range aggregate(String view, String column) {
-        var viewConfig = configuration.viewConfig.get(view);
+    public Range aggregate(String viewType, String columnName) {
+        var viewConfig = configuration.viewConfig.get(viewType);
         if (viewConfig == null) {
-            throw new IllegalArgumentException("View not supported: " + view);
+            throw new IllegalArgumentException("View not supported: " + viewType);
         }
-        var table = configuration.viewTables.get(view);
-        var columnDefinition = table.getColumn(column.toLowerCase());
-        try (PreparedStatement query = postgresConnection.prepareStatement("select min(" + columnDefinition.name
-                + ") as min, max(" + columnDefinition.name + ") as max" + " from " + table.name)) {
-            var result = query.executeQuery();
-            if (!result.next()) {
-                return null;
-            }
-            Object min;
-            Object max;
-            if (columnDefinition.type == Date) {
-                min = result.getTimestamp("min");
-                max = result.getTimestamp("max");
+        var table = configuration.viewTables.get(viewType);
+        var columnDefinition = table.getColumn(columnName.toLowerCase());
+        var dataType = columnDefinition.type;
+        if (dataType != ColumnType.Number && dataType != Date) {
+            throw new IllegalArgumentException("Column type not supported for min/max queries: " + dataType);
+        }
+        try (SqlSession sqlSession = clickhouseSessionFactory.openSession()) {
+            ViewMapper mapper = sqlSession.getMapper(ViewMapper.class);
+            if (dataType == ColumnType.Number) {
+                return mapper.selectNumericViewAttributeMinMax(viewType, columnName);
             } else {
-                min = result.getBigDecimal("min");
-                max = result.getBigDecimal("max");
+                return mapper.selectDateViewAttributeMinMax(viewType, columnDefinition.name);
             }
-            return new Range(min, max);
-        } catch (SQLException e) {
-            throw new QueryException("Error aggregating column values", e);
         }
     }
 

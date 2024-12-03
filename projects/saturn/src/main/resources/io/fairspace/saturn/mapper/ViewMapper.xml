@@ -171,4 +171,27 @@
         </where>
     </select>
 
+    <select id="selectNumericViewAttributeMinMax" resultType="io.fairspace.saturn.services.views.Range">
+        <include refid="getAttributeMinMax">
+            <property name="table" value="fairspace.view_to_numeric_attribute"/>
+        </include>
+    </select>
+
+    <select id="selectDateViewAttributeMinMax" resultType="io.fairspace.saturn.services.views.Range">
+        <include refid="getAttributeMinMax">
+            <property name="table" value="fairspace.view_to_date_attribute"/>
+        </include>
+    </select>
+
+    <sql id="getAttributeMinMax">
+        SELECT
+            MIN(va.value) AS start,
+            MAX(va.value) AS end
+        FROM ${table} va
+        <where>
+            va.view_type = #{viewType}
+            AND va.attribute_name = #{attributeName}
+        </where>
+    </sql>
+
 </mapper>

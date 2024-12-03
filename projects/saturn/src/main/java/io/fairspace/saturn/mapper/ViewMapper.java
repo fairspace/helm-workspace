@@ -1,10 +1,10 @@
 package io.fairspace.saturn.mapper;
 
-import java.util.List;
-
-import io.fairspace.saturn.services.views.ViewFilter;
+import io.fairspace.saturn.services.views.Range;
 import io.fairspace.saturn.services.views.ViewQueryParameters;
 import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
 
 public interface ViewMapper {
 
@@ -24,5 +24,11 @@ public interface ViewMapper {
 
     List<ViewAttributeDate> selectDateViewAttributes(@Param("viewType") String viewType,
                                                      @Param("viewNames") List<String> viewNames);
+
+    Range selectNumericViewAttributeMinMax(@Param("viewType") String viewType,
+                                           @Param("attributeName") String attributeName);
+
+    Range selectDateViewAttributeMinMax(@Param("viewType") String viewType,
+                                        @Param("attributeName") String attributeName);
 
 }
