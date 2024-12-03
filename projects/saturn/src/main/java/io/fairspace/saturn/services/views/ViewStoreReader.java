@@ -54,16 +54,11 @@ public class ViewStoreReader implements AutoCloseable {
                 .replaceAll("\\\\", "\\\\");
     }
 
-    String iriForLabel(String type, String label) throws SQLException {
-        try (var query = postgresConnection.prepareStatement("select id from label where type = ? and label = ?")) {
-            query.setString(1, type);
-            query.setString(2, label);
-            var result = query.executeQuery();
-            if (result.next()) {
-                return result.getString("id");
-            }
+    String iriForLabel(String type, String label) {
+        try (SqlSession sqlSession = clickhouseSessionFactory.openSession()) {
+            LabelMapper mapper = sqlSession.getMapper(LabelMapper.class);
+            return mapper.getId(type, label);
         }
-        return null;
     }
 
     Map<String, Set<ValueDTO>> transformRow(View viewConfig,
@@ -166,7 +161,7 @@ public class ViewStoreReader implements AutoCloseable {
      */
     // TODO I believe that includeJoinedViews is not needed.
     public List<Map<String, Set<ValueDTO>>> retrieveRows(
-            String view, List<ViewFilter> filters, int offset, int limit, boolean includeJoinedViews) throws SQLException {
+            String view, List<ViewFilter> filters, int offset, int limit, boolean includeJoinedViews) throws Exception {
 
         var viewConfig = configuration.viewConfig.get(view);
         if (viewConfig == null) {

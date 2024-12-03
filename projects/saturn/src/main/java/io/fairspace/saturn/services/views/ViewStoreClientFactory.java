@@ -10,6 +10,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import io.fairspace.saturn.mapper.LabelMapper;
 import io.fairspace.saturn.mapper.ViewMapper;
 import lombok.Builder;
 import lombok.Data;
@@ -125,6 +126,7 @@ public class ViewStoreClientFactory {
         Environment environment = new Environment("development", transactionFactory, clickhouse);
         Configuration mybatisConfig = new Configuration(environment);
         mybatisConfig.addMapper(ViewMapper.class);
+        mybatisConfig.addMapper(LabelMapper.class);
 
         return new SqlSessionFactoryBuilder().build(mybatisConfig);
     }
