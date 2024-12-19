@@ -19,7 +19,7 @@ import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
 import CheckBoxIcon from '@mui/icons-material/CheckBox';
 import GetAppIcon from '@mui/icons-material/GetApp';
 import FormGroup from '@mui/material/FormGroup';
-import useDeepCompareEffect from 'use-deep-compare-effect';
+import useDeepCompareEffect, {useDeepCompareEffectNoCheck} from 'use-deep-compare-effect';
 import {useTheme} from '@mui/material/styles';
 
 import type {MetadataViewColumn, MetadataViewFilter} from './MetadataViewAPI';
@@ -376,7 +376,7 @@ export const MetadataViewTableContainer = (props: MetadataViewTableContainerProp
         setPage(0);
     }, [filters]);
 
-    useDeepCompareEffect(() => {
+    useDeepCompareEffectNoCheck(() => {
         resetRowCheckboxes();
     }, [data]);
 
