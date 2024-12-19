@@ -97,7 +97,7 @@ export const LinkedDataEntityForm = ({
                             labelFirst,
                             descriptionFirst,
                             systemPropertiesLast,
-                            compareBy(p => (typeof p.order === 'number' ? p.order : Number.MAX_SAFE_INTEGER)),
+                            compareBy(p => (Number.isNaN(Number(p.order)) ? Number.MAX_SAFE_INTEGER : Number(p.order))),
                             compareBy('label')
                         )
                     )
