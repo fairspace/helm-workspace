@@ -13,6 +13,7 @@ plugins {
     id "org.owasp.dependencycheck" version '8.2.1'
     id 'io.spring.dependency-management' version '1.1.4'
     id "com.diffplug.spotless" version "6.25.0"
+    id 'com.github.jk1.dependency-license-report' version '2.9'
 }
 
 group 'nl.fairspace'
@@ -97,4 +98,10 @@ dependencyManagement {
     imports {
         mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
     }
+}
+
+import com.github.jk1.license.filter.LicenseBundleNormalizer
+licenseReport {
+    filters = [new LicenseBundleNormalizer(bundlePath: "$projectDir/license-normalizer-bundle.json")]
+    allowedLicensesFile = new File("$projectDir/allowed-licenses.json")
 }
