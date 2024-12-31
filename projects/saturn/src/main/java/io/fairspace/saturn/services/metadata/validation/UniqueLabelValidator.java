@@ -7,6 +7,8 @@ import org.springframework.stereotype.Component;
 
 import io.fairspace.saturn.vocabulary.FS;
 
+import static org.apache.jena.rdf.model.ResourceFactory.createPlainLiteral;
+
 @Component
 public class UniqueLabelValidator implements MetadataRequestValidator {
     @Override
@@ -21,7 +23,7 @@ public class UniqueLabelValidator implements MetadataRequestValidator {
                     .filterDrop(res -> res.hasProperty(FS.dateDeleted))
                     .hasNext();
             if (conflictingResourceExists) {
-                violationHandler.onViolation("Duplicate label", resource, RDFS.label, null);
+                violationHandler.onViolation("Duplicate label", resource, RDFS.label, createPlainLiteral(label));
             }
         });
     }
