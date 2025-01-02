@@ -64,7 +64,7 @@ export const MetadataViewActiveFacetFilters = (props: MetadataViewActiveFacetFil
             );
         }
         return filter.values.map(valueIri => {
-            const value = facet.values.find(val => val.value === valueIri);
+            const value = facet.values.find(val => val.value.toLowerCase() === valueIri.toLowerCase());
             return (
                 value && (
                     <Chip
@@ -95,7 +95,7 @@ export const MetadataViewActiveFacetFilters = (props: MetadataViewActiveFacetFil
                     ) {
                         return null;
                     }
-                    const facet = facets.find(f => f.name === filter.field);
+                    const facet = facets.find(f => f.name.toLowerCase() === filter.field.toLowerCase());
                     if (facet) {
                         return (
                             <Grid key={filter.field} item>

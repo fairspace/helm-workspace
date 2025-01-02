@@ -3,9 +3,11 @@ import _ from 'lodash';
 import {useHistory} from 'react-router-dom';
 import {Button, Grid, Typography} from '@mui/material';
 import withStyles from '@mui/styles/withStyles';
-import {Assignment, Close} from '@mui/icons-material';
+import {Assignment, Close, ContentCopy} from '@mui/icons-material';
 import queryString from 'query-string';
+import qs from 'qs';
 
+import {SnackbarProvider, useSnackbar} from 'notistack';
 import styles from './MetadataView.styles';
 import type {MetadataViewFacet, MetadataViewFilter, MetadataViewOptions, ValueType} from './MetadataViewAPI';
 import BreadCrumbs from '../../common/components/BreadCrumbs';
@@ -34,6 +36,7 @@ import usePageTitleUpdater from '../../common/hooks/UsePageTitleUpdater';
 import MetadataViewFacetsContext from './MetadataViewFacetsContext';
 import {accessLevelForCollection} from '../../collections/collectionUtils';
 import InternalMetadataSourceContext from '../metadata-sources/InternalMetadataSourceContext';
+import {MAX_URL_LENGTH} from '../../constants';
 
 type ContextualMetadataViewProperties = {
     classes: any
@@ -70,6 +73,7 @@ export const MetadataView = (props: MetadataViewProperties) => {
 
     const {collections} = useContext(CollectionsContext);
     const {toggle, selected} = useSingleSelection();
+    const {enqueueSnackbar} = useSnackbar();
 
     const [filterCandidates, setFilterCandidates] = useState([]);
     const [textFiltersObject, setTextFiltersObject] = useState({});
@@ -199,7 +203,9 @@ export const MetadataView = (props: MetadataViewProperties) => {
     };
 
     const areFacetFiltersNonEmpty = useMemo(
-        () => filters && filters.some(filter => facetsEx.some(facet => facet.name === filter.field)),
+        () =>
+            filters &&
+            filters.some(filter => facetsEx.some(facet => facet.name.toLowerCase() === filter.field.toLowerCase())),
         [filters, facetsEx]
     );
     const areTextFiltersNonEmpty = useMemo(
@@ -218,6 +224,48 @@ export const MetadataView = (props: MetadataViewProperties) => {
         return `${window.location.host}${pathPrefix}?${prefilteringQueryString}`;
     };
 
+    const copyFiltersUrl = () => {
+        const queryParams = filters.reduce((acc, filter) => {
+            acc[filter.field.toLowerCase()] = filter.values.join(',');
+            return acc;
+        }, {});
+        const queryStringFilters = queryString.stringify(queryParams);
+        const url = `${window.location.protocol}//${window.location.host}/metadata-views?view=${currentView.name}&${queryStringFilters}`;
+
+        if (url.length > MAX_URL_LENGTH) {
+            enqueueSnackbar('Failed to copy metadata view filters URL to clipboard: URL too long');
+            return;
+        }
+        navigator.clipboard
+            .writeText(url)
+            .then(() => enqueueSnackbar('Metadata view filters URL copied to clipboard'))
+            .catch(() => enqueueSnackbar('Failed to copy metadata view filters URL to clipboard'));
+    };
+
+    useEffect(() => {
+        const queryStringFilters = qs.parse(window.location.search, {ignoreQueryPrefix: true});
+        if (queryStringFilters && Object.keys(queryStringFilters).length > 0) {
+            const idTextFilter = queryStringFilters[currentViewIdColumn.name.toLowerCase()];
+            if (idTextFilter && (!areTextFiltersNonEmpty || !textFiltersObject.keys.includes(currentViewIdColumn))) {
+                setTextFiltersObject({...textFiltersObject, [currentViewIdColumn.name]: idTextFilter});
+            }
+            if (!areFacetFiltersNonEmpty) {
+                const facetNames = facets.map(f => f.name.toLowerCase());
+                const newFilters = Object.keys(queryStringFilters)
+                    .filter(k => facetNames.includes(k.toLowerCase()))
+                    .reduce((arr, key) => {
+                        arr.push({
+                            field: key,
+                            values: queryStringFilters[key].split(',')
+                        });
+                        return arr;
+                    }, []);
+                updateFilters(newFilters);
+            }
+        }
+        // eslint-disable-next-line
+    }, []);
+
     return (
         <BreadcrumbsContext.Provider
             value={{
@@ -233,12 +281,15 @@ export const MetadataView = (props: MetadataViewProperties) => {
             <BreadCrumbs additionalSegments={getPathSegments(locationContext)} />
             {(areFacetFiltersNonEmpty || areTextFiltersNonEmpty) && (
                 <Grid container justifyContent="space-between" direction="row-reverse">
-                    <Grid item xs={2} className={classes.clearAllButtonContainer}>
+                    <Grid item xs={2} className={classes.clearAllButtonContainer} justifyContent="space-between">
                         <Button
-                            className={classes.clearAllButton}
-                            startIcon={<Close />}
-                            onClick={handleClearAllFilters}
+                            className={classes.filterButtons}
+                            startIcon={<ContentCopy />}
+                            onClick={() => copyFiltersUrl(currentView, filters)}
                         >
+                            Copy filters
+                        </Button>
+                        <Button className={classes.filterButtons} startIcon={<Close />} onClick={handleClearAllFilters}>
                             Clear all filters
                         </Button>
                     </Grid>
@@ -348,19 +399,21 @@ export const ContextualMetadataView = (props: ContextualMetadataViewProperties) 
     };
 
     return (
-        <MetadataView
-            {...props}
-            metadataLabel={metadataLabel}
-            facets={facets}
-            views={views}
-            filters={filters}
-            locationContext={currentViewName === RESOURCES_VIEW && locationContext}
-            currentViewName={currentViewName}
-            handleViewChangeRedirect={handleViewChangeRedirect}
-            updateFilters={updateFilters}
-            clearFilter={clearFilter}
-            clearAllFilters={clearAllFilters}
-        />
+        <SnackbarProvider maxSnack={3}>
+            <MetadataView
+                {...props}
+                metadataLabel={metadataLabel}
+                facets={facets}
+                views={views}
+                filters={filters}
+                locationContext={currentViewName === RESOURCES_VIEW && locationContext}
+                currentViewName={currentViewName}
+                handleViewChangeRedirect={handleViewChangeRedirect}
+                updateFilters={updateFilters}
+                clearFilter={clearFilter}
+                clearAllFilters={clearAllFilters}
+            />
+        </SnackbarProvider>
     );
 };
 

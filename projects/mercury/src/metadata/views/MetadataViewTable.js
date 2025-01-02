@@ -1,15 +1,14 @@
-import React, {useCallback, useEffect} from 'react';
+import React, {useCallback} from 'react';
 import {Checkbox, Link, Table, TableBody, TableCell, TableHead, TableRow} from '@mui/material';
 import {Check, Close} from '@mui/icons-material';
 import makeStyles from '@mui/styles/makeStyles';
 import {Link as RouterLink} from 'react-router-dom';
-import qs from 'qs';
 import useDeepCompareEffect from 'use-deep-compare-effect';
 import type {MetadataViewColumn, MetadataViewData} from './MetadataViewAPI';
 import {TextualValueTypes} from './MetadataViewAPI';
 import type {MetadataViewEntity, MetadataViewEntityWithLinkedFiles} from './metadataViewUtils';
 import {RESOURCES_VIEW} from './metadataViewUtils';
-import {stringToBooleanValueOrNull, formatDate} from '../../common/utils/genericUtils';
+import {formatDate, stringToBooleanValueOrNull} from '../../common/utils/genericUtils';
 import type {Collection} from '../../collections/CollectionAPI';
 import {collectionAccessIcon} from '../../collections/collectionUtils';
 import {getPathFromIri, redirectLink} from '../../file/fileUtils';
@@ -52,12 +51,12 @@ const RESOURCE_TYPE_COLUMN = `${RESOURCES_VIEW}_type`;
 export const MetadataViewTable = (props: MetadataViewTableProperties) => {
     const {columns, visibleColumnNames, loading, data, toggleRow, selected, view, idColumn, history, collections} =
         props;
-    const classes = useStyles();
     const {textFiltersObject, setTextFiltersObject} = props;
+    const {checkboxes, setCheckboxState} = props;
+    const classes = useStyles();
     const visibleColumns = columns.filter(column => visibleColumnNames.includes(column.name));
     const dataLinkColumn = columns.find(c => c.type === 'dataLink');
     const isResourcesView = view === RESOURCES_VIEW;
-    const {checkboxes, setCheckboxState} = props;
 
     const isCustomResourceColumn = (column: MetadataViewColumn) =>
         isResourcesView && CUSTOM_RESOURCE_COLUMNS.includes(column.name) && column.type === 'Custom';
@@ -65,11 +64,6 @@ export const MetadataViewTable = (props: MetadataViewTableProperties) => {
     const getAccess = (iri: string) => {
         const col = collections.find(c => c.iri === iri || iri.startsWith(c.iri + '/'));
         return col ? col.access : 'None';
-    };
-
-    const getIdColumnFilterFromSearchParams = () => {
-        const idColumnName = idColumn.name.toLowerCase();
-        return qs.parse(window.location.search, {ignoreQueryPrefix: true})[idColumnName];
     };
 
     const getResourceType = (row: Map<string, any>) =>
@@ -82,15 +76,6 @@ export const MetadataViewTable = (props: MetadataViewTableProperties) => {
             toggleRow({label, iri, linkedFiles: linkedFiles || []});
         }
     };
-    useEffect(() => {
-        if (!textFiltersObject || !textFiltersObject.keys || !textFiltersObject.keys.includes(idColumn)) {
-            const idColumnTextFilter = getIdColumnFilterFromSearchParams();
-            if (idColumnTextFilter) {
-                setTextFiltersObject({...textFiltersObject, [idColumn.name]: idColumnTextFilter});
-            }
-        }
-        // eslint-disable-next-line
-    }, []);
 
     const initializeCheckboxes = useCallback(() => {
         if (idColumn && data && data.rows) {
