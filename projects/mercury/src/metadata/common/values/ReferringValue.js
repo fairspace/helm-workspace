@@ -34,7 +34,9 @@ export const ReferringValue = ({property, entry}) => {
         // External links should be represented by a direct link to the URI itself
         // Other iri entities should be opened in the metadata editor
         return property.isExternalLink ? (
-            <a href={entry.id}>{entry.id}</a>
+            <a href={entry.id} target="_blank" rel="noreferrer">
+                {entry.id}
+            </a>
         ) : (
             <LinkedDataLink uri={entry.id}>{displayValue}</LinkedDataLink>
         );
