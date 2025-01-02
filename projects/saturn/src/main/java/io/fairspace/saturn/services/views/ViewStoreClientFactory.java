@@ -4,7 +4,6 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +18,7 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
+import org.springframework.util.LinkedCaseInsensitiveMap;
 
 import io.fairspace.saturn.config.properties.ViewDatabaseProperties;
 import io.fairspace.saturn.config.properties.ViewsProperties;
@@ -252,7 +252,7 @@ public class ViewStoreClientFactory {
             var name = String.format("%s_%s", view.name.toLowerCase(), column.name.toLowerCase());
             var propertyTable = new Table(name, propertyTableColumns);
             createOrUpdateTable(propertyTable);
-            configuration.propertyTables.putIfAbsent(view.name, new HashMap<>());
+            configuration.propertyTables.putIfAbsent(view.name, new LinkedCaseInsensitiveMap<>());
             configuration.propertyTables.get(view.name).put(column.name, propertyTable);
         }
         if (view.join != null) {
@@ -260,9 +260,8 @@ public class ViewStoreClientFactory {
             for (ViewsProperties.View.JoinView join : view.join) {
                 var joinTable = getJoinTable(join, view);
                 createOrUpdateJoinTable(joinTable);
-                configuration.joinTables.putIfAbsent(view.name, new HashMap<>());
+                configuration.joinTables.putIfAbsent(view.name, new LinkedCaseInsensitiveMap<>());
                 configuration.joinTables.get(view.name).put(join.view, joinTable);
-                var joinView = configuration.viewConfig.get(join.view);
             }
         }
     }

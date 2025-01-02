@@ -10,8 +10,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +21,7 @@ import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
+import org.springframework.util.LinkedCaseInsensitiveMap;
 
 import io.fairspace.saturn.config.properties.ViewsProperties;
 import io.fairspace.saturn.services.views.Table.ColumnDefinition;
@@ -34,14 +33,16 @@ import static io.fairspace.saturn.services.views.Table.valueColumn;
 public class ViewStoreClient implements AutoCloseable {
 
     public static class ViewStoreConfiguration {
-        final Map<String, ViewsProperties.View> viewConfig;
-        final Map<String, Table> viewTables = new HashMap<>();
-        final Map<String, Map<String, Table>> propertyTables = new HashMap<>();
-        final Map<String, Map<String, Table>> joinTables = new HashMap<>();
+        final LinkedCaseInsensitiveMap<ViewsProperties.View> viewConfig;
+        final LinkedCaseInsensitiveMap<Table> viewTables = new LinkedCaseInsensitiveMap<>();
+        final LinkedCaseInsensitiveMap<LinkedCaseInsensitiveMap<Table>> propertyTables =
+                new LinkedCaseInsensitiveMap<>();
+        final LinkedCaseInsensitiveMap<LinkedCaseInsensitiveMap<Table>> joinTables = new LinkedCaseInsensitiveMap<>();
 
         public ViewStoreConfiguration(ViewsProperties viewsProperties) {
-            viewConfig =
-                    viewsProperties.views.stream().collect(Collectors.toMap(view -> view.name, Function.identity()));
+            viewConfig = new LinkedCaseInsensitiveMap<>();
+            viewConfig.putAll(
+                    viewsProperties.views.stream().collect(Collectors.toMap(view -> view.name, Function.identity())));
         }
     }
 
@@ -272,7 +273,7 @@ public class ViewStoreClient implements AutoCloseable {
         tables.add(configuration.viewTables.get(view));
         tables.addAll(configuration
                 .propertyTables
-                .getOrDefault(view, Collections.emptyMap())
+                .getOrDefault(view, new LinkedCaseInsensitiveMap<>())
                 .values());
         var joins = configuration.viewConfig.get(view).join;
         if (joins != null) {
