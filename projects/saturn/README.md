@@ -34,4 +34,12 @@ To format the code, run the following command:
 
 NOTE: The Spotless plugin also runs as part of the CI pipeline. Build will fail if the code is not formatted correctly.
 
+### Licenses
 
+The project uses the Gradle license plugin to manage licenses. To check if the licenses of the dependencies
+are compatible with list of allowed licenses defined in [allowed-licenses.json](allowed-licenses.json),
+run the following command:
+
+```bash
+./gradlew :checkLicense
+```
