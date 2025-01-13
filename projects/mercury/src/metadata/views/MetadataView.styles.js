@@ -29,9 +29,11 @@ const styles = theme => ({
     clearAllButtonContainer: {
         textAlign: 'end'
     },
-    clearAllButton: {
+    filterButtons: {
         color: theme.palette.primary.contrastText,
-        background: theme.palette.primary.main
+        background: theme.palette.primary.main,
+        marginLeft: 1,
+        marginBottom: 1
     },
     activeFilters: {
         marginBottom: 10

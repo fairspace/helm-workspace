@@ -79,7 +79,9 @@ export const MetadataViewFacets = (props: MetadataViewFacetsProperties) => {
 
     const renderSingleFacet = (facet: MetadataViewFacet) => {
         const facetOptions = getFilterValues(facet.type, facet);
-        const activeFilter = [...filterCandidates, ...filters].find(filter => filter.field === facet.name);
+        const activeFilter = [...filterCandidates, ...filters].find(
+            filter => filter.field.toLowerCase() === facet.name.toLowerCase()
+        );
         let activeFilterValues = [];
         if (activeFilter) {
             activeFilterValues = getFilterValues(facet.type, activeFilter);

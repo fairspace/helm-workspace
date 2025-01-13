@@ -18,7 +18,11 @@ describe('ReferringValue', () => {
                 property,
                 entry
             })
-        ).toEqual(<a href="https://thehyve.nl">https://thehyve.nl</a>);
+        ).toEqual(
+            <a rel="noreferrer" target="_blank" href="https://thehyve.nl">
+                https://thehyve.nl
+            </a>
+        );
     });
 
     it('should render a generic iri resource as link to editor', () => {

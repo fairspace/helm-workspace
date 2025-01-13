@@ -5,7 +5,6 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import javax.sql.DataSource;
 
 import lombok.extern.slf4j.Slf4j;
@@ -250,10 +249,8 @@ public class MaterializedViewService {
             if ("id".equalsIgnoreCase(attr)) {
                 continue;
             }
-            var isOfSetType = configuration
-                    .propertyTables
-                    .getOrDefault(joinView.view, Map.of())
-                    .containsKey(attr);
+            var propTable = configuration.propertyTables.get(joinView.view);
+            var isOfSetType = propTable != null && propTable.containsKey(attr);
             tableAliases.put(joinedTable + "_" + attr.toLowerCase(), isOfSetType ? "jt_" + (i + 1) : "jt_0");
         }
         for (int i = 0; i < joinView.include.size(); i++) {
@@ -292,10 +289,8 @@ public class MaterializedViewService {
 
         for (int i = 0; i < joinView.include.size(); i++) {
             var attr = joinView.include.get(i);
-            var isOfSetType = configuration
-                    .propertyTables
-                    .getOrDefault(joinView.view, Map.of())
-                    .containsKey(attr);
+            var propTable = configuration.propertyTables.get(joinView.view);
+            var isOfSetType = propTable != null && propTable.containsKey(attr);
             if (!isOfSetType) {
                 continue;
             }

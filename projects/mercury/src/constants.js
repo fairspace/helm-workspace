@@ -22,6 +22,8 @@ export const DATE_FORMAT = 'dd-MM-yyyy';
 // The maximum number of items in a list in the right panel, for performance reasons.
 // If you change this, also change it in 'MetadataService.java'
 export const MAX_LIST_LENGTH = 100;
+// Max length of URL in the browser
+export const MAX_URL_LENGTH = 2000;
 
 // Metadata schemas
 export const SHACL_NS = 'http://www.w3.org/ns/shacl#';

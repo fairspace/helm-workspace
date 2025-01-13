@@ -11,7 +11,6 @@ const SESSION_STORAGE_METADATA_FILTERS_KEY = 'FAIRSPACE_METADATA_FILTERS';
 
 export const MetadataViewProvider = ({children, metadataViewAPI = MetadataViewAPI, sourceName = ''}) => {
     const {data = {}, error, loading, refresh} = useAsync(() => metadataViewAPI.getViews(), []);
-
     const [filters: MetadataViewFilter[], setFilters] = useStateWithSessionStorage(
         `${SESSION_STORAGE_METADATA_FILTERS_KEY}_${sourceName}`,
         []
@@ -23,11 +22,14 @@ export const MetadataViewProvider = ({children, metadataViewAPI = MetadataViewAP
 
     const clearAllFilters = () => {
         setFilters([]);
+        const queryParams = new URLSearchParams(window.location.search);
+        const viewParam = queryParams.get('view');
+        window.history.replaceState(null, '', `${window.location.pathname}?${viewParam ? `view=${viewParam}` : ''}`);
     };
 
     const updateFilters = (filterCandidates: MetadataViewFilter[]) => {
         setFilters([
-            ...filters.filter(f => !filterCandidates.some(u => u.field === f.field)),
+            ...filters.filter(f => !filterCandidates.some(u => u.field.toLowerCase() === f.field.toLowerCase())),
             ...filterCandidates.filter(
                 f =>
                     (f.values && f.values.length > 0) ||

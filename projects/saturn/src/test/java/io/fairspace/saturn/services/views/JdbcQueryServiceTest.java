@@ -254,6 +254,16 @@ public class JdbcQueryServiceTest extends PostgresAwareTest {
     }
 
     @Test
+    public void retrieveSamplePageIsCaseInsensitive() {
+        var request = new ViewRequest();
+        request.setView("sample");
+        request.setPage(1);
+        request.setSize(10);
+        var page = sut.retrieveViewPage(request);
+        Assert.assertEquals(2, page.getRows().size());
+    }
+
+    @Test
     public void testRetrieveSamplePageAfterReindexing() {
         maintenanceService.recreateIndex();
         var request = new ViewRequest();
@@ -357,6 +367,29 @@ public class JdbcQueryServiceTest extends PostgresAwareTest {
     }
 
     @Test
+    public void retrieveSamplePageIncludeJoinIsCaseInsensitive() {
+        var request = new ViewRequest();
+        request.setView("sample");
+        request.setPage(1);
+        request.setSize(10);
+        request.setIncludeJoinedViews(true);
+        var page = sut.retrieveViewPage(request);
+        Assert.assertEquals(2, page.getRows().size());
+        var row1 = page.getRows().getFirst();
+        Assert.assertEquals(
+                "Sample A for subject 1",
+                row1.get("Sample").stream().findFirst().orElseThrow().label());
+        Assert.assertEquals(1, row1.get("Subject").size());
+        var row2 = page.getRows().get(1);
+        Assert.assertEquals(
+                "Sample B for subject 2",
+                row2.get("Sample").stream().findFirst().orElseThrow().label());
+        Assert.assertEquals(
+                Set.of("RNA-seq", "Whole genome sequencing"),
+                row2.get("Resource_analysisType").stream().map(ValueDto::label).collect(Collectors.toSet()));
+    }
+
+    @Test
     public void testRetrieveSamplePageIncludeJoinAfterReindexing() {
         maintenanceService.recreateIndex();
         var request = new ViewRequest();
@@ -385,6 +418,15 @@ public class JdbcQueryServiceTest extends PostgresAwareTest {
         selectRegularUser();
         var requestParams = new CountRequest();
         requestParams.setView("Sample");
+        var result = sut.count(requestParams);
+        assertEquals(2, result.count());
+    }
+
+    @Test
+    public void countSamplesIsCaseInsensitive() {
+        selectRegularUser();
+        var requestParams = new CountRequest();
+        requestParams.setView("sample");
         var result = sut.count(requestParams);
         assertEquals(2, result.count());
     }
