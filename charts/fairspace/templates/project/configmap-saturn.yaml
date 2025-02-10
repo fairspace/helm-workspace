@@ -17,8 +17,8 @@ data:
         oauth2:
           resourceserver:
             jwt:
-              issuer-uri: {{ .Values.external.keycloak.baseUrl }}/realms/fairspace
-              jwk-set-uri: {{ .Values.external.keycloak.baseUrl }}/realms/fairspace/protocol/openid-connect/certs
+              issuer-uri: {{ .Values.external.keycloak.baseUrl }}/realms/{{ .Values.external.keycloak.realm }}
+              jwk-set-uri: {{ .Values.external.keycloak.baseUrl }}/realms/{{ .Values.external.keycloak.realm }}/protocol/openid-connect/certs
       servlet:
         multipart:
           max-file-size: 2GB

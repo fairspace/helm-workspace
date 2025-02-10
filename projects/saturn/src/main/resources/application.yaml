@@ -19,7 +19,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: ${keycloak.auth-server-url}/realms/fairspace
+          issuer-uri: ${keycloak.auth-server-url}/realms/${keycloak.realm}
           jwk-set-uri: ${spring.security.oauth2.resourceserver.jwt.issuer-uri}/protocol/openid-connect/certs
   servlet:
     multipart:
