@@ -13,7 +13,7 @@ export const handleAuthError = status => {
     switch (status) {
         case 401:
             sessionStorage.clear();
-            window.location.assign(`/login?redirectUrl=${encodeURI(window.location.href)}`);
+            window.location.assign(`/login?redirectUrl=${encodeURIComponent(window.location.href)}`);
             break;
         case 403:
             ErrorDialog.showError(
