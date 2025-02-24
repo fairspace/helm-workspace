@@ -43,15 +43,19 @@ module.exports = app => {
         req.kauth.grant && proxyReq.setHeader('Authorization', `Bearer ${req.kauth.grant.access_token.token}`);
 
     app.use(
-        createProxyMiddleware('/api', {
-            target: 'http://localhost:8080/',
-            onProxyReq: addToken
+        '/api',
+        createProxyMiddleware({
+            target: 'http://localhost:8080/api',
+            on: {
+                proxyReq: addToken
+            }
         })
     );
 
     app.use(
-        createProxyMiddleware('/actuator/health', {
-            target: 'http://localhost:8080/'
+        '/actuator/health',
+        createProxyMiddleware({
+            target: 'http://localhost:8080/actuator/health'
         })
     );
 };
