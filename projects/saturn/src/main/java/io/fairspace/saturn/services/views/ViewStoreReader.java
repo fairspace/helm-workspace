@@ -304,11 +304,13 @@ public class ViewStoreReader {
         }
         prepareFilters(filters);
         var filtersByView = filters.stream()
-                .collect(Collectors.groupingBy(filter -> filter.getField().split("_")[0]));
+                .collect(Collectors.groupingBy(
+                        filter -> filter.getField().toLowerCase().split("_")[0]));
         var values = new ArrayList<>();
-        var constraints = sqlFilter("v", configuration.viewConfig.get(view), filtersByView.get(view), values);
+        var constraints =
+                sqlFilter("v", configuration.viewConfig.get(view), filtersByView.get(view.toLowerCase()), values);
         var subqueries = filtersByView.entrySet().stream()
-                .filter(entry -> !entry.getKey().equals(view))
+                .filter(entry -> !entry.getKey().equalsIgnoreCase(view))
                 .map(entry -> {
                     String resultCondition;
                     var subView = entry.getKey();
