@@ -1,6 +1,7 @@
 package io.fairspace.saturn.auth;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -35,5 +36,13 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults());
 
         return http.build();
+    }
+
+    @Bean
+    public FilterRegistrationBean<RequestContextCleanupFilter> threadLocalCleanupFilter() {
+        FilterRegistrationBean<RequestContextCleanupFilter> registrationBean = new FilterRegistrationBean<>();
+        registrationBean.setFilter(new RequestContextCleanupFilter());
+        registrationBean.addUrlPatterns("/*");
+        return registrationBean;
     }
 }
