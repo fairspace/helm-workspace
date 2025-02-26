@@ -35,6 +35,7 @@ public class RequestContextTest {
     @Test
     public void getUserURI_shouldReturnNullWhenNoJwt() {
         SecurityContextHolder.clearContext();
+        RequestContext.clear();
         assertNull(RequestContext.getUserURI());
     }
 
@@ -49,6 +50,6 @@ public class RequestContextTest {
     public void getClaims_shouldReturnEmptyClaimsWhenNoJwt() {
         SecurityContextHolder.clearContext();
         RequestContext.SaturnClaims claims = RequestContext.getClaims();
-        assertTrue(claims.getSubject().isEmpty());
+        assertNull(claims.getSubject());
     }
 }
