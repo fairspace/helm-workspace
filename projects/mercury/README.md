@@ -14,17 +14,17 @@ please read about the [project structure](Structure.md) first.
 
 Prerequisites:
 
-- [nodejs and npm](https://www.npmjs.com/get-npm)
-- [yarn](https://yarnpkg.com/lang/en/)
-- docker
-- Java 17
+-   [nodejs and npm](https://www.npmjs.com/get-npm)
+-   [yarn](https://yarnpkg.com/lang/en/)
+-   docker
+-   Java 17
 
 The Mercury frontend app needs a backend to communicate with. For convenience, there are a few scripts to use for local development:
 
-- `yarn localdevelopment` starts Keycloak at port `5100`.
-- `yarn saturn` starts the backend at port `8090`.
-- `yarn pluto` starts a proxy server that also serves the frontend at port `8080`.
-- `yarn start` starts the frontend and exposes it at port `3000`.
+-   `yarn localdevelopment` starts Keycloak at port `5100`.
+-   `yarn saturn` starts the backend at port `8090`.
+-   `yarn pluto` starts a proxy server that also serves the frontend at port `8080`.
+-   `yarn start` starts the frontend and exposes it at port `3000`.
 
 For the first run, execute the following command to install all dependencies locally:
 
@@ -40,12 +40,12 @@ yarn dev
 
 This will start:
 
-- Keycloak (http://localhost:5100)
-- PostgreSQL (port `9432`)
-- Saturn (JDK 17 required, port `8090`)
-- Pluto (proxy, including Mercury frontend, http://localhost:8080)
-- Mercury frontend in development mode (http://localhost:3000)
-- a [backend proxy](src/setupProxy.js) for Mercury
+-   Keycloak (http://localhost:5100)
+-   PostgreSQL (port `9432`)
+-   Saturn (JDK 17 required, port `8090`)
+-   Pluto (proxy, including Mercury frontend, http://localhost:8080)
+-   Mercury frontend in development mode (http://localhost:3000)
+-   a [backend proxy](src/setupProxy.js) for Mercury
 
 The backend and frontend application will be available at http://localhost:8080/
 
@@ -58,10 +58,10 @@ In Keycloak, one setting needs to be configured manually: the permissions of the
 
 ### Libraries
 
-- The UI uses many components from [Material UI](https://material-ui.com/).
-- [axios](https://github.com/axios/axios) is used for http requests.
-- [webdav](https://github.com/perry-mitchell/webdav-client) is used for connecting to WebDAV servers.
-- [jsonld](https://github.com/digitalbazaar/jsonld.js) is used for unpacking JSON-LD responses.
+-   The UI uses many components from [Material UI](https://material-ui.com/).
+-   [axios](https://github.com/axios/axios) is used for http requests.
+-   [webdav](https://github.com/perry-mitchell/webdav-client) is used for connecting to WebDAV servers.
+-   [jsonld](https://github.com/digitalbazaar/jsonld.js) is used for unpacking JSON-LD responses.
 
 ### Code style
 
