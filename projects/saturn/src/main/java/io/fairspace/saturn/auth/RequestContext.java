@@ -101,4 +101,9 @@ public class RequestContext {
             return (String) claims.get(NAME);
         }
     }
+
+    public static void clear() {
+        currentRequest.remove();
+        currentUserUri.remove();
+    }
 }
