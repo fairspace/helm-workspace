@@ -85,7 +85,7 @@ export const MetadataView = (props: MetadataViewProperties) => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const currentViewIndex = Math.max(0, views.map(v => v.name).indexOf(currentViewName));
+    const currentViewIndex = Math.max(0, views.map(v => v.name.toLowerCase()).indexOf(currentViewName.toLowerCase()));
     const currentView = views[currentViewIndex];
     const currentViewIdColumn = currentView?.columns.find(c => c.type === 'Identifier' && c.name === currentView.name);
 

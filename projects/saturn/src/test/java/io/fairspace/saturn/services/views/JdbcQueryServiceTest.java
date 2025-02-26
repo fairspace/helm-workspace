@@ -316,6 +316,20 @@ public class JdbcQueryServiceTest extends PostgresAwareTest {
     }
 
     @Test
+    public void testRetrieveSamplePageUsingSampleFilterIsCaseInsensitive() {
+        var request = new ViewRequest();
+        request.setView("sample");
+        request.setPage(1);
+        request.setSize(10);
+        request.setFilters(Collections.singletonList(ViewFilter.builder()
+                .field("sample_nature")
+                .values(Collections.singletonList(SAMPLE_NATURE_BLOOD))
+                .build()));
+        var page = sut.retrieveViewPage(request);
+        Assert.assertEquals(1, page.getRows().size());
+    }
+
+    @Test
     public void testRetrieveSamplePageForAccessibleCollection() {
         var request = new ViewRequest();
         request.setView("Sample");
